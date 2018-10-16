@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import norm
+from scipy.linalg import norm, inv
 from math import sqrt
 
 def standardize(D):
@@ -43,7 +43,7 @@ class cc_fista(object):
 		self.maxit = maxit
 		self.steptype = steptype
 
-	def infer():
+	def infer(self):
 		# mat/obj init
 		X = self.X0.copy()
 		Theta = self.X0.copy()
@@ -85,7 +85,7 @@ class cc_fista(object):
 
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
-			WTh = S@Theta
+			WTh = self.S@Theta
 			Gn = 0.5 * (WTh + WTh.transpose())
 			Gn += - np.diag(1.0/Theta.diagonal())
 
@@ -110,5 +110,30 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
-			loop = itr<self.maxit and subgnorm/Xnnorm>tol
+			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		return Xn
+
+def test():
+	# data_prep
+	p = 10
+	omega = np.identity(p)
+	omega[1,5] = omega[5,1] = 0.99
+	omega[2,6] = omega[6,2] = 0.99
+	sigma = inv(omega)
+	vectors = np.random.multivariate_normal(np.zeros(p),sigma,200)
+	# infer
+	fi = cc_fista(vectors,0.5)
+	invcov = fi.infer()
+	# info
+	print(np.count_nonzero(omega))
+	print(np.count_nonzero(invcov))
+	import ipdb; ipdb.set_trace()
+	print('omega:\n',omega)
+	print('inferred invcov:\n',invcov)
+	# check if nonzero entries align
+	omega[omega!=0] = 1
+	invcov[invcov!=0] = 1
+	print('non-overlap nonzero entry count: ', np.count_nonzero(omega-invcov))
+
+if __name__ == '__main__':
+	test()
