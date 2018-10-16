@@ -5,14 +5,14 @@ def standardize(D):
 	S = D-np.tile(D.mean(axis=0),(D.shape[0],1))
 	return (S.transpose()@S) / (S.shape[0] - 1)
 
-def sgn():
-	pass
+def sthresh(x,t):
+	"""x and t are double"""
+	return np.sign(x) * max(abs(x)-t, 0.0)
 
-def sthresh():
-	pass
-	
-def sthreshmat():
-	pass
+def sthreshmat(x,tau,t):
+	"""x and t are matrices"""
+	assert x.shape == t.shape, 'matrix shape mismatch'
+	return np.sign(x) * np.maximum(abs(x)-tau*t, 0.0)
 
 class cc_fista(object):
 	"""concord fista"""
