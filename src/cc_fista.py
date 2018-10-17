@@ -23,7 +23,7 @@ class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, 
 				DisS=0, penalize_diag=0,
-				tol=1e-5, maxit=300, steptype=1):
+				tol=1e-5, maxit=100, steptype=1):
 		super(cc_fista, self).__init__()
 		
 		p = D.shape[1]

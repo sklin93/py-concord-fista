@@ -27,11 +27,13 @@ def data_prep(Dir = '/home/sikun/Documents/data/HCP-V1/'):
 
 def main():
 	_, vec_f = data_prep()
-	fi = cc_fista(vec_f,0.5)
+	fi = cc_fista(vec_f,0.3)
 	# import ipdb; ipdb.set_trace()
 	start = time.time()
 	invcov = fi.infer()
 	print((time.time()-start)/60)
+	print(np.count_nonzero(invcov))
+	import ipdb; ipdb.set_trace()
 
 if __name__ == '__main__':
 	main()
