@@ -20,14 +20,12 @@ def data_prep(Dir = '/home/sikun/Documents/data/HCP-V1/'):
 	      p = p+1
 	vec_s = np.transpose(np.asarray(vec_s))
 	vec_f = np.transpose(np.asarray(vec_f))
-
-	print(vec_s.shape)
-	print(vec_f.shape)
 	return vec_s, vec_f
 
 def f_only():
-	_, vec_f = data_prep()
-	fi = cc_fista(vec_f,0.3)
+	_, vec = data_prep()
+	fi = cc_fista(vec,0.3)
+	print('Input vector shape: ', vec.shape)
 	# import ipdb; ipdb.set_trace()
 	start = time.time()
 	invcov = fi.infer()
@@ -38,7 +36,8 @@ def f_only():
 def s_f():
 	vec_s, vec_f = data_prep()
 	vec = np.concatenate((vec_f,vec_s), axis=1)
-	fi = cc_fista(vec, 0.3)
+	print('Input vector shape: ', vec.shape)
+	fi = cc_fista(vec, 0.3, s_f=True)
 	start = time.time()
 	omega = fi.infer_s_f()
 	print((time.time()-start)/60)

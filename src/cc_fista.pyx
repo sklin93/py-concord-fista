@@ -47,6 +47,7 @@ class cc_fista(object):
 			self.X0 = np.concatenate((np.identity(d),np.zeros((d,d))),axis=1)
 		else:
 			self.X0 = np.identity(p)
+		print(self.X0.shape)
 		self.tol = tol
 		self.maxit = maxit
 		self.steptype = steptype
@@ -123,6 +124,7 @@ class cc_fista(object):
 
 	def infer_s_f(self):
 		# mat/obj init
+		d = self.X0.shape[0]
 		X = self.X0.copy()
 		Theta = self.X0.copy()
 		W = self.S@X.transpose()
@@ -136,9 +138,11 @@ class cc_fista(object):
 		loop = True
 
 		G = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
-		G += - np.diag(1.0/Theta[:,:Theta.shape[0]].diagonal())
+		import ipdb; ipdb.set_trace()
+		G += np.concatenate((-np.diag(1.0/Theta[:,:d].diagonal()),np.zeros((d,d))))
 
 		while loop:
+			print(itr)
 			tau = taun
 			diagitr = backitr = 0
 
@@ -164,7 +168,7 @@ class cc_fista(object):
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			Gn = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
-			Gn += - np.diag(1.0/Theta[:,:Theta.shape[0]].diagonal())
+			Gn += - np.diag(1.0/Theta[:,:d].diagonal())
 
 			if self.steptype == 0:
 				taun = 1

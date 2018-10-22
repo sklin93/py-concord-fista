@@ -18,11 +18,10 @@ def sthreshmat(x,tau,t):
 def pseudol(X,W):
 	return -np.log(X.diagonal()).sum() + 0.5*(X@W).trace()
 
-def pseudol_sf(X,W):
-	tmp = X[:,:X.shape[0]]
-	return -np.log(tmp.diagonal()).sum() + 0.5*(X@W).trace()
+# def pseudol_sf(X,W):
+# 	tmp = X[:,:X.shape[0]]
+# 	return -np.log(tmp.diagonal()).sum() + 0.5*(X@W).trace()
 
-#TODO: verbosity
 class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, 
@@ -35,18 +34,25 @@ class cc_fista(object):
 			self.S = D
 		else:
 			self.S = standardize(D)
-		# penalty
-		self.LambdaMat = lam*np.ones((p,p))
-		if not penalize_diag:
-			np.fill_diagonal(self.LambdaMat, 0)
-		if pMat is not None:
-			self.LambdaMat[pMat==0] *= 100
-		# other init
+
 		if s_f:
 			d = int(p/2)
+			# penalty
+			ff_lambdamat = lam*100*np.ones((d,d))
+			np.fill_diagonal(ff_lambdamat,0)
+			fs_lambdamat = lam*np.ones((d,d))
+			self.LambdaMat = np.concatenate((ff_lambdamat,fs_lambdamat),axis=1)
 			self.X0 = np.concatenate((np.identity(d),np.zeros((d,d))),axis=1)
 		else:
+			# penalty
+			self.LambdaMat = lam*np.ones((p,p))
+			if not penalize_diag:
+				np.fill_diagonal(self.LambdaMat, 0)
+			if pMat is not None:
+				self.LambdaMat[pMat==0] *= 100
 			self.X0 = np.identity(p)
+		print('LambdaMat shape: ',self.LambdaMat.shape)
+		print('Init shape: ',self.X0.shape)
 		self.tol = tol
 		self.maxit = maxit
 		self.steptype = steptype
@@ -69,15 +75,17 @@ class cc_fista(object):
 		G += - np.diag(1.0/Theta.diagonal())
 
 		while loop:
+			print(itr)
 			tau = taun
 			diagitr = backitr = 0
 
 			while True:
+				print('.')
 				if diagitr != 0 or backitr != 0: 
 					tau = tau * c
 
 				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat);
-				if Xn.diagonal().min()<1e-8 and diagitr<50: # Q mark, thresh by LambdaMat, always have 0? always enter if?
+				if Xn.diagonal().min()<1e-8 and diagitr<50:
 					diagitr += 1
 					continue
 
@@ -123,6 +131,7 @@ class cc_fista(object):
 
 	def infer_s_f(self):
 		# mat/obj init
+		d = self.X0.shape[0]
 		X = self.X0.copy()
 		Theta = self.X0.copy()
 		W = self.S@X.transpose()
@@ -136,35 +145,39 @@ class cc_fista(object):
 		loop = True
 
 		G = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
-		G += - np.diag(1.0/Theta[:,:Theta.shape[0]].diagonal())
+		G += np.concatenate((-np.diag(1.0/Theta[:,:d].diagonal()),np.zeros((d,d))), axis=1)
 
 		while loop:
+			print(itr)
 			tau = taun
 			diagitr = backitr = 0
 
 			while True:
+				print('.')
 				if diagitr != 0 or backitr != 0: 
 					tau = tau * c
-
-				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat);
+					print('tau',tau)
+				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
 				if Xn.diagonal().min()<1e-8 and diagitr<50:
+					print('diagitr',diagitr)
 					diagitr += 1
 					continue
 
 				Step = Xn - Theta
 				hTh = pseudol(Theta,WTh)
 				Qn = hTh + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
-				Wn = self.S @ Xn
+				Wn = self.S @ Xn.transpose()
 				hn = pseudol(Xn,Wn)
 				if hn > Qn:
 					backitr += 1
+					print('backitr',backitr)
 				else:
 					break
-
+			print('out')
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			Gn = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
-			Gn += - np.diag(1.0/Theta[:,:Theta.shape[0]].diagonal())
+			Gn += np.concatenate((-np.diag(1.0/Theta[:,:d].diagonal()),np.zeros((d,d))), axis=1)
 
 			if self.steptype == 0:
 				taun = 1
