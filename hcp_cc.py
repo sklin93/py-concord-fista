@@ -25,7 +25,7 @@ def data_prep(Dir = '/home/sikun/Documents/data/HCP-V1/'):
 	print(vec_f.shape)
 	return vec_s, vec_f
 
-def main():
+def f_only():
 	_, vec_f = data_prep()
 	fi = cc_fista(vec_f,0.3)
 	# import ipdb; ipdb.set_trace()
@@ -35,5 +35,15 @@ def main():
 	print(np.count_nonzero(invcov))
 	import ipdb; ipdb.set_trace()
 
+def s_f():
+	vec_s, vec_f = data_prep()
+	vec = np.concatenate((vec_f,vec_s), axis=1)
+	fi = cc_fista(vec, 0.3)
+	start = time.time()
+	omega = fi.infer_s_f()
+	print((time.time()-start)/60)
+	import ipdb; ipdb.set_trace()
+
 if __name__ == '__main__':
-	main()
+	# f_only()
+	s_f()

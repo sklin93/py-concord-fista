@@ -121,7 +121,7 @@ class cc_fista(object):
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		return Xn
 
-	def infer_s_f():
+	def infer_s_f(self):
 		# mat/obj init
 		X = self.X0.copy()
 		Theta = self.X0.copy()
