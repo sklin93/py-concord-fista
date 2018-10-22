@@ -22,7 +22,7 @@ def pseudol(X,W):
 class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, 
-				DisS=0, penalize_diag=0,
+				DisS=0, penalize_diag=0, s_f = False,
 				tol=1e-5, maxit=100, steptype=1):
 		super(cc_fista, self).__init__()
 		
@@ -38,7 +38,11 @@ class cc_fista(object):
 		if pMat is not None:
 			self.LambdaMat[pMat==0] *= 100
 		# other init
-		self.X0 = np.identity(p)
+		if s_f:
+			d = int(p/2)
+			self.X0 = np.concatenate((np.identity(d),np.zeros((d,d))),axis=1)
+		else:
+			self.X0 = np.identity(p)
 		self.tol = tol
 		self.maxit = maxit
 		self.steptype = steptype
@@ -112,6 +116,9 @@ class cc_fista(object):
 			itr += 1
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		return Xn
+
+	def infer_s_f():
+		pass
 
 def test():
 	# data_prep
