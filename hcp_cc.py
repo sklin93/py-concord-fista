@@ -1,9 +1,13 @@
 from scipy.io import loadmat
 import numpy as np
 from cc_fista import cc_fista
-import time
+import time, yaml
 
-def data_prep(Dir = '/home/sikun/Documents/data/HCP-V1/'):
+# load config file
+with open('config.yaml') as info:
+    info_dict = yaml.load(info)
+
+def data_prep(Dir = info_dict['data_dir']):
 	sMat = loadmat(Dir+'Diffusion-q.mat')
 	s = sMat['X']
 	fMat = loadmat(Dir+'tfMRI-EMOTION.mat')
