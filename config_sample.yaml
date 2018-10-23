@@ -1,0 +1,10 @@
+data_dir:
+  '/home/sikun/Documents/data/HCP-V1/'
+s_file:
+  'Diffusion-q.mat'
+f_file:
+  'tfMRI-EMOTION.mat'
+data_dir_Bassette:
+  '/home/sikun/Documents/data/Bassette/'
+Bassette_file:
+  'data_matrices.mat'

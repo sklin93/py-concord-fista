@@ -3,15 +3,26 @@ import numpy as np
 from cc_fista import cc_fista
 import time, yaml
 
-# load config file
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
 
-def data_prep(Dir = info_dict['data_dir']):
-	sMat = loadmat(Dir+'Diffusion-q.mat')
-	s = sMat['X']
-	fMat = loadmat(Dir+'tfMRI-EMOTION.mat')
-	f = fMat['X']
+def data_prep(combined=False, normalize_s=False):
+	if combined:
+		dataMat = loadmat(info_dict['data_dir_Bassette']+info_dict['Bassette_file'])
+		sMat = dataMat['Ss']
+		fMat = dataMat['Fs']
+		s = []
+		f = []
+		for i in range(sMat.shape[0]):
+			s.append(sMat[i][0])
+			f.append(fMat[i][0])
+		s = np.stack(s, axis=2)
+		f = np.stack(f, axis=2)
+	else:
+		sMat = loadmat(info_dict['data_dir']+info_dict['s_file'])
+		s = sMat['X']
+		fMat = loadmat(info_dict['data_dir']+info_dict['f_file'])
+		f = fMat['X']
 	 
 	d,_,n = s.shape
 	vec_s = []
@@ -24,6 +35,9 @@ def data_prep(Dir = info_dict['data_dir']):
 	      p = p+1
 	vec_s = np.transpose(np.asarray(vec_s))
 	vec_f = np.transpose(np.asarray(vec_f))
+	if normalize_s:
+		vec_s -= vec_s.min()
+		vec_s /= vec_s.max()
 	return vec_s, vec_f
 
 def f_only():
@@ -38,7 +52,8 @@ def f_only():
 	import ipdb; ipdb.set_trace()
 
 def s_f():
-	vec_s, vec_f = data_prep()
+	# vec_s, vec_f = data_prep(combined=False, normalize_s=True)
+	vec_s, vec_f = data_prep(combined=True)
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
 	fi = cc_fista(vec, 0.3, s_f=True)
