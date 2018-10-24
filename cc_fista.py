@@ -173,7 +173,8 @@ class cc_fista(object):
 					print('backitr',backitr)
 				else:
 					break
-			print('out')
+
+			print('tau selected')
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			Gn = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
@@ -184,7 +185,7 @@ class cc_fista(object):
 			elif self.steptype == 1:
 				taun = tau
 			elif self.steptype == 2:
-				taun = (Step@Step).diagonal().sum() / (Step@(Gn-G)).trace()
+				taun = (Step@Step).trace() / (Step@(Gn-G)).trace()
 				if taun < 0.0:
 					taun = tau
 			# compute subg
