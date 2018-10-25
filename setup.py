@@ -1,4 +1,4 @@
 from distutils.core import setup
 from Cython.Build import cythonize
 
-setup(ext_modules = cythonize('src/cc_fista.pyx'))
+setup(ext_modules = cythonize('cc_fista.pyx'))

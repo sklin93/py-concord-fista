@@ -11,16 +11,12 @@ def sthresh(x,t):
 	return np.sign(x) * max(abs(x)-t, 0.0)
 
 def sthreshmat(x,tau,t):
-	"""x and t are matrices"""
+	"""x and t are matrices, soft thresholding"""
 	assert x.shape == t.shape, 'matrix shape mismatch'
 	return np.sign(x) * np.maximum(abs(x)-tau*t, 0.0)
 
 def pseudol(X,W):
-	return -np.log(X.diagonal()).sum() + 0.5*(X@W).trace()
-
-# def pseudol_sf(X,W):
-# 	tmp = X[:,:X.shape[0]]
-# 	return -np.log(tmp.diagonal()).sum() + 0.5*(X@W).trace()
+	return -np.log(X.diagonal()).sum() + 0.5*(X.transpose()*W).sum()
 
 class cc_fista(object):
 	"""concord fista"""
@@ -110,7 +106,7 @@ class cc_fista(object):
 			elif self.steptype == 1:
 				taun = tau
 			elif self.steptype == 2:
-				taun = (Step@Step).diagonal().sum() / (Step@(Gn-G)).trace()
+				taun = (Step@Step).trace() / (Step@(Gn-G)).trace()
 				if taun < 0.0:
 					taun = tau
 			# compute subg
@@ -145,7 +141,7 @@ class cc_fista(object):
 		loop = True
 
 		G = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
-		G += np.concatenate((-np.diag(1.0/Theta[:,:d].diagonal()),np.zeros((d,d))), axis=1)
+		G += np.concatenate((-np.diag(1.0/Theta.diagonal()),np.zeros((d,d))), axis=1)
 
 		while loop:
 			print(itr)
@@ -164,10 +160,8 @@ class cc_fista(object):
 					continue
 
 				Step = Xn - Theta
-				hTh = pseudol(Theta,WTh)
-				Qn = hTh + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
-				Wn = self.S @ Xn.transpose()
-				hn = pseudol(Xn,Wn)
+				Qn = pseudol(Theta,WTh) + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
+				hn = pseudol(Xn,self.S@Xn.transpose())
 				if hn > Qn:
 					backitr += 1
 					print('backitr',backitr)
@@ -175,16 +169,17 @@ class cc_fista(object):
 					break
 
 			print('tau selected')
-			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
+			alphan = (1 + sqrt(1+4*(alpha**2)))/2
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			Gn = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
-			Gn += np.concatenate((-np.diag(1.0/Theta[:,:d].diagonal()),np.zeros((d,d))), axis=1)
+			Gn += np.concatenate((-np.diag(1.0/Theta.diagonal()),np.zeros((d,d))), axis=1)
 
 			if self.steptype == 0:
 				taun = 1
 			elif self.steptype == 1:
 				taun = tau
 			elif self.steptype == 2:
+				#TODO: change trace(@) to faster *.sum()
 				taun = (Step@Step).trace() / (Step@(Gn-G)).trace()
 				if taun < 0.0:
 					taun = tau
