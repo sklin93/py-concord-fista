@@ -106,7 +106,9 @@ class cc_fista(object):
 			elif self.steptype == 1:
 				taun = tau
 			elif self.steptype == 2:
-				taun = (Step@Step).trace() / (Step@(Gn-G)).trace()
+				# taun = (Step.transpose()@Step).trace() / (Step.transpose()@(Gn-G)).trace()
+				# using *.sum() is much faster:
+				taun = (Step*Step).sum() / (Step*(Gn-G)).sum()
 				if taun < 0.0:
 					taun = tau
 			# compute subg
@@ -143,13 +145,13 @@ class cc_fista(object):
 		G = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
 		G += np.concatenate((-np.diag(1.0/Theta.diagonal()),np.zeros((d,d))), axis=1)
 
+		inner_ctr = 0
 		while loop:
 			print(itr)
 			tau = taun
 			diagitr = backitr = 0
 
 			while True:
-				print('.')
 				if diagitr != 0 or backitr != 0: 
 					tau = tau * c
 					print('tau',tau)
@@ -167,8 +169,12 @@ class cc_fista(object):
 					print('backitr',backitr)
 				else:
 					break
+				if inner_ctr > 3:
+					break
+				else:
+					inner_ctr += 1
 
-			print('tau selected')
+			print('tau selected: ', tau)
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			Gn = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
@@ -179,8 +185,7 @@ class cc_fista(object):
 			elif self.steptype == 1:
 				taun = tau
 			elif self.steptype == 2:
-				#TODO: change trace(@) to faster *.sum()
-				taun = (Step@Step).trace() / (Step@(Gn-G)).trace()
+				taun = (Step*Step).sum() / (Step*(Gn-G)).sum()
 				if taun < 0.0:
 					taun = tau
 			# compute subg
@@ -196,6 +201,7 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
+			print(subgnorm/Xnnorm)
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		return Xn
 
