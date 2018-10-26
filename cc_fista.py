@@ -71,12 +71,10 @@ class cc_fista(object):
 		G += - np.diag(1.0/Theta.diagonal())
 
 		while loop:
-			print(itr)
 			tau = taun
 			diagitr = backitr = 0
 
 			while True:
-				print('.')
 				if diagitr != 0 or backitr != 0: 
 					tau = tau * c
 
@@ -145,34 +143,38 @@ class cc_fista(object):
 		G = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
 		G += np.concatenate((-np.diag(1.0/Theta.diagonal()),np.zeros((d,d))), axis=1)
 
-		inner_ctr = 0
 		while loop:
 			print(itr)
 			tau = taun
 			diagitr = backitr = 0
+			inner_ctr = 0
 
-			while True:
-				if diagitr != 0 or backitr != 0: 
-					tau = tau * c
-					print('tau',tau)
+			if self.steptype == 3: # constant stepsize without inner loop
 				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
-				if Xn.diagonal().min()<1e-8 and diagitr<50:
-					print('diagitr',diagitr)
-					diagitr += 1
-					continue
-
-				Step = Xn - Theta
-				Qn = pseudol(Theta,WTh) + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
-				hn = pseudol(Xn,self.S@Xn.transpose())
-				if hn > Qn:
-					backitr += 1
-					print('backitr',backitr)
-				else:
-					break
-				if inner_ctr > 3:
-					break
-				else:
+				# Step = Xn - Theta
+			else:
+				while True:
 					inner_ctr += 1
+					if inner_ctr > 5:
+						break
+					print('inner_ctr', inner_ctr)
+					if diagitr != 0 or backitr != 0: 
+						tau = tau * c
+						print('tau',tau)
+					Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
+					if Xn.diagonal().min()<1e-8 and diagitr<50:
+						diagitr += 1
+						print('diagitr',diagitr)
+						continue
+
+					Step = Xn - Theta
+					Qn = pseudol(Theta,WTh) + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
+					hn = pseudol(Xn,self.S@Xn.transpose())
+					if hn > Qn:
+						backitr += 1
+						print('backitr',backitr)
+					else:
+						break
 
 			print('tau selected: ', tau)
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2
@@ -188,6 +190,8 @@ class cc_fista(object):
 				taun = (Step*Step).sum() / (Step*(Gn-G)).sum()
 				if taun < 0.0:
 					taun = tau
+			elif self.steptype == 3:
+				taun = 1.5
 			# compute subg
 			tmp = Gn + np.sign(Xn)*self.LambdaMat
 			subg = sthreshmat(Gn, 1.0, self.LambdaMat)
