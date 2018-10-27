@@ -22,7 +22,7 @@ class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, 
 				DisS=0, penalize_diag=0, s_f = False,
-				tol=1e-5, maxit=100, steptype=1):
+				tol=1e-5, maxit=200, steptype=1, const_ss=1.5):
 		super(cc_fista, self).__init__()
 		
 		p = D.shape[1]
@@ -52,6 +52,7 @@ class cc_fista(object):
 		self.tol = tol
 		self.maxit = maxit
 		self.steptype = steptype
+		self.const_ss = const_ss
 
 	def infer(self):
 		# mat/obj init
@@ -136,6 +137,8 @@ class cc_fista(object):
 		# const init
 		hn = hTh = Qn = f = 0.0
 		taun = alpha = 1.0
+		if self.steptype == 3:
+			taun = self.const_ss
 		c = 0.9
 		itr = diagitr = backitr = 0
 		loop = True
@@ -191,7 +194,7 @@ class cc_fista(object):
 				if taun < 0.0:
 					taun = tau
 			elif self.steptype == 3:
-				taun = 1.5
+				taun = self.const_ss
 			# compute subg
 			tmp = Gn + np.sign(Xn)*self.LambdaMat
 			subg = sthreshmat(Gn, 1.0, self.LambdaMat)
@@ -205,7 +208,7 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
-			print(subgnorm/Xnnorm)
+			print('err',subgnorm/Xnnorm)
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		return Xn
 

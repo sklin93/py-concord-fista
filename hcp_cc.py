@@ -56,7 +56,7 @@ def s_f():
 	vec_s, vec_f = data_prep(combined=True)
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
-	fi = cc_fista(vec, 0.3, s_f=True, steptype=3)
+	fi = cc_fista(vec, 0.08, s_f=True, steptype=3, const_ss=2.0)
 	start = time.time()
 	omega = fi.infer_s_f()
 	print((time.time()-start)/60)
