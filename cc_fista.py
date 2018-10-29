@@ -22,7 +22,7 @@ class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, 
 				DisS=0, penalize_diag=0, s_f = False,
-				tol=1e-5, maxit=200, steptype=1, const_ss=1.5):
+				tol=1e-5, maxit=300, steptype=1, const_ss=1.5):
 		super(cc_fista, self).__init__()
 		
 		p = D.shape[1]
@@ -37,6 +37,7 @@ class cc_fista(object):
 			ff_lambdamat = lam*100*np.ones((d,d))
 			np.fill_diagonal(ff_lambdamat,0)
 			fs_lambdamat = lam*np.ones((d,d))
+			np.fill_diagonal(fs_lambdamat,0)
 			self.LambdaMat = np.concatenate((ff_lambdamat,fs_lambdamat),axis=1)
 			self.X0 = np.concatenate((np.identity(d),np.zeros((d,d))),axis=1)
 		else:
@@ -53,6 +54,8 @@ class cc_fista(object):
 		self.maxit = maxit
 		self.steptype = steptype
 		self.const_ss = const_ss
+		self.s_f = s_f
+		self.result = None
 
 	def infer(self):
 		# mat/obj init
@@ -124,6 +127,7 @@ class cc_fista(object):
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
+		self.result = Xn
 		return Xn
 
 	def infer_s_f(self):
@@ -210,7 +214,20 @@ class cc_fista(object):
 			itr += 1
 			print('err',subgnorm/Xnnorm)
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
+		self.result = Xn
 		return Xn
+
+	def loss(self):
+		"""pseudo likelihood of result"""
+		if self.result is None:
+			print('Run concord first!')
+			return
+		X = self.result
+		if self.s_f:
+			W = self.S@X.transpose()
+		else:
+			W = self.S@X
+		return pseudol(X,W)
 
 def test():
 	# data_prep

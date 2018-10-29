@@ -1,6 +1,6 @@
 from scipy.io import loadmat
 import numpy as np
-from cc_fista import cc_fista
+from cc_fista import cc_fista, standardize, pseudol
 import time, yaml
 
 with open('config.yaml') as info:
@@ -40,9 +40,9 @@ def data_prep(combined=False, normalize_s=False):
 		vec_s /= vec_s.max()
 	return vec_s, vec_f
 
-def f_only():
+def f_only(lam=0.3):
 	_, vec = data_prep()
-	fi = cc_fista(vec,0.3)
+	fi = cc_fista(vec,lam)
 	print('Input vector shape: ', vec.shape)
 	# import ipdb; ipdb.set_trace()
 	start = time.time()
@@ -51,17 +51,36 @@ def f_only():
 	print(np.count_nonzero(invcov))
 	import ipdb; ipdb.set_trace()
 
-def s_f():
+def s_f(lam, check_loss_only=False):
 	# vec_s, vec_f = data_prep(combined=False, normalize_s=True)
 	vec_s, vec_f = data_prep(combined=True)
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
-	fi = cc_fista(vec, 0.08, s_f=True, steptype=3, const_ss=2.0)
+	if check_loss_only:
+		check_loss(vec,np.load(str(lam)+'.npy'))
+		return
+	fi = cc_fista(vec, lam, s_f=True, steptype=3, const_ss=2.0)
 	start = time.time()
 	omega = fi.infer_s_f()
 	print((time.time()-start)/60)
-	import ipdb; ipdb.set_trace()
+	# import ipdb; ipdb.set_trace()
+	np.save(str(lam)+'.npy',omega)
+	print(np.count_nonzero(omega))
+	print(np.count_nonzero(omega[:,:4005]))
+	print(np.count_nonzero(omega[:,4005:]))
+	print(np.count_nonzero(omega[:,:4005].diagonal()))
+	print(np.count_nonzero(omega[:,4005:].diagonal()))
+	print(fi.loss())
+
+def check_loss(D,X):
+	print(np.count_nonzero(X))
+	print(np.count_nonzero(X[:,:4005]))
+	print(np.count_nonzero(X[:,4005:]))
+	print(np.count_nonzero(X[:,:4005].diagonal()))
+	print(np.count_nonzero(X[:,4005:].diagonal()))
+	S = standardize(D)
+	print(pseudol(X,S@X.transpose()))
 
 if __name__ == '__main__':
 	# f_only()
-	s_f()
+	s_f(lam=0.08, check_loss_only=True)
