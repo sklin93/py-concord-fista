@@ -6,8 +6,8 @@ import time, yaml
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
 
-def data_prep(combined=False, normalize_s=False):
-	if combined:
+def data_prep(upenn=False, normalize_s=False):
+	if upenn:
 		dataMat = loadmat(info_dict['data_dir_Bassette']+info_dict['Bassette_file'])
 		sMat = dataMat['Ss']
 		fMat = dataMat['Fs']
@@ -40,20 +40,22 @@ def data_prep(combined=False, normalize_s=False):
 		vec_s /= vec_s.max()
 	return vec_s, vec_f
 
-def f_only(lam=0.3):
-	_, vec = data_prep()
-	fi = cc_fista(vec,lam)
+def f_only(lam):
+	# original version
+	_, vec = data_prep(upenn=True)
+	fi = cc_fista(vec,lam,steptype=1)
 	print('Input vector shape: ', vec.shape)
 	# import ipdb; ipdb.set_trace()
 	start = time.time()
 	invcov = fi.infer()
 	print((time.time()-start)/60)
 	print(np.count_nonzero(invcov))
-	import ipdb; ipdb.set_trace()
+	print(np.count_nonzero(invcov.diagonal()))
+	print(fi.loss())
 
 def s_f(lam, check_loss_only=False):
-	# vec_s, vec_f = data_prep(combined=False, normalize_s=True)
-	vec_s, vec_f = data_prep(combined=True)
+	# vec_s, vec_f = data_prep(upenn=False, normalize_s=True)
+	vec_s, vec_f = data_prep(upenn=True)
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
 	if check_loss_only:
@@ -61,7 +63,7 @@ def s_f(lam, check_loss_only=False):
 		return
 	fi = cc_fista(vec, lam, s_f=True, steptype=3, const_ss=2.0)
 	start = time.time()
-	omega = fi.infer_s_f()
+	omega = fi.infer()
 	print((time.time()-start)/60)
 	# import ipdb; ipdb.set_trace()
 	np.save(str(lam)+'.npy',omega)
@@ -82,5 +84,5 @@ def check_loss(D,X):
 	print(pseudol(X,S@X.transpose()))
 
 if __name__ == '__main__':
-	# f_only()
-	s_f(lam=0.08, check_loss_only=True)
+	f_only(lam=0.1)
+	# s_f(lam=0.16, check_loss_only=False)

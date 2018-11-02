@@ -18,10 +18,15 @@ def sthreshmat(x,tau,t):
 def pseudol(X,W):
 	return -np.log(X.diagonal()).sum() + 0.5*(X.transpose()*W).sum()
 
+# def pseudol_sf(X,W):
+# 	p = X.shape[0]
+# 	return -np.log(X.diagonal()).sum() - np.log(X[:,p:].diagonal()).sum \
+# 									   + 0.5*(X.transpose()*W).sum()
+
 class cc_fista(object):
 	"""concord fista"""
-	def __init__(self, D, lam, pMat=None, 
-				DisS=0, penalize_diag=0, s_f = False,
+	def __init__(self, D, lam, pMat=None, DisS=0,
+				penalize_diag=0, s_f = False, v=True,
 				tol=1e-5, maxit=300, steptype=1, const_ss=1.5):
 		super(cc_fista, self).__init__()
 		
@@ -39,7 +44,7 @@ class cc_fista(object):
 			fs_lambdamat = lam*np.ones((d,d))
 			np.fill_diagonal(fs_lambdamat,0)
 			self.LambdaMat = np.concatenate((ff_lambdamat,fs_lambdamat),axis=1)
-			self.X0 = np.concatenate((np.identity(d),np.zeros((d,d))),axis=1)
+			self.X0 = np.concatenate((np.identity(d),np.identity(d)),axis=1)
 		else:
 			# penalty
 			self.LambdaMat = lam*np.ones((p,p))
@@ -56,8 +61,16 @@ class cc_fista(object):
 		self.const_ss = const_ss
 		self.s_f = s_f
 		self.result = None
+		self.v = v
 
 	def infer(self):
+		if self.s_f:
+			return self.infer_s_f()
+		else:
+			return self.infer_original()
+
+	def infer_original(self):
+		v = self.v
 		# mat/obj init
 		X = self.X0.copy()
 		Theta = self.X0.copy()
@@ -75,10 +88,14 @@ class cc_fista(object):
 		G += - np.diag(1.0/Theta.diagonal())
 
 		while loop:
+			if v: print(itr)
 			tau = taun
 			diagitr = backitr = 0
+			inner_ctr = 0
 
 			while True:
+				inner_ctr += 1
+				if v: print('inner_ctr', inner_ctr)
 				if diagitr != 0 or backitr != 0: 
 					tau = tau * c
 
@@ -96,7 +113,7 @@ class cc_fista(object):
 					backitr += 1
 				else:
 					break
-
+			if v: print('tau selected: ', tau)
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			WTh = self.S@Theta
@@ -126,11 +143,13 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
+			if v: print('err',subgnorm/Xnnorm)
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		self.result = Xn
 		return Xn
 
 	def infer_s_f(self):
+		v = self.v
 		# mat/obj init
 		d = self.X0.shape[0]
 		X = self.X0.copy()
@@ -151,7 +170,7 @@ class cc_fista(object):
 		G += np.concatenate((-np.diag(1.0/Theta.diagonal()),np.zeros((d,d))), axis=1)
 
 		while loop:
-			print(itr)
+			if v: print(itr)
 			tau = taun
 			diagitr = backitr = 0
 			inner_ctr = 0
@@ -164,14 +183,14 @@ class cc_fista(object):
 					inner_ctr += 1
 					if inner_ctr > 5:
 						break
-					print('inner_ctr', inner_ctr)
+					if v: print('inner_ctr', inner_ctr)
 					if diagitr != 0 or backitr != 0: 
 						tau = tau * c
-						print('tau',tau)
+						if v: print('tau',tau)
 					Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
 					if Xn.diagonal().min()<1e-8 and diagitr<50:
 						diagitr += 1
-						print('diagitr',diagitr)
+						if v: print('diagitr',diagitr)
 						continue
 
 					Step = Xn - Theta
@@ -179,11 +198,11 @@ class cc_fista(object):
 					hn = pseudol(Xn,self.S@Xn.transpose())
 					if hn > Qn:
 						backitr += 1
-						print('backitr',backitr)
+						if v: print('backitr',backitr)
 					else:
 						break
 
-			print('tau selected: ', tau)
+			if v: print('tau selected: ', tau)
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
 			Gn = 0.5 * (Theta@self.S.transpose() + Theta@self.S)
@@ -212,7 +231,7 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
-			print('err',subgnorm/Xnnorm)
+			if v: print('err',subgnorm/Xnnorm)
 			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
 		self.result = Xn
 		return Xn
@@ -238,7 +257,7 @@ def test():
 	sigma = inv(omega)
 	vectors = np.random.multivariate_normal(np.zeros(p),sigma,200)
 	# infer
-	fi = cc_fista(vectors,0.5)
+	fi = cc_fista(vectors,0.5,v=False) # v for verbosity
 	invcov = fi.infer()
 	# info
 	print(np.count_nonzero(omega))
