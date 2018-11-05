@@ -30,20 +30,14 @@ def plot_edge(omega, r_name, idx, edge_idx):
 	r = len(r_name) # num regions
 
 	G = nx.Graph()
-	G.add_nodes_from(np.arange(len(r)))
+	G.add_nodes_from(np.arange(r))
 
-	ctr = 0
-	for i in range(d-1):
-		for j in range(i+1,d):
-			if omega[i,j] != 0:
-				G.add_edge(idx[i][0],idx[i][1])
-				G.add_edge(idx[j][0],idx[j][1])
-				ctr = ctr+1
-	print(ctr)
+	for i in range(d):
+		if omega[edge_idx,i]!=0:
+			G.add_edge(idx[i][0],idx[i][1])
 	## Delete nodes with degree 0
-	to_del = nx.isolates(G)
-	G.remove_nodes_from(to_del)
-
+	G.remove_nodes_from(list(nx.isolates(G)))
+	print('connected components number:', nx.number_connected_components(G))
 	## Draw
 	options = {'node_color': '#FA8072', 'edge_color': '#2C3E50', 
 				'node_size': 400,'width': 0.8,}
@@ -54,11 +48,10 @@ def plot_edge(omega, r_name, idx, edge_idx):
 	nx.draw(G, with_labels=True, **options) #font_weight='bold'
 	plt.show()
 
-
 if __name__ == '__main__':
 	r_name = info_dict['data']['aal']
 
-	omega = np.load('0.1.npy') #p*2p
+	omega = np.load('0.08.npy') #p*2p
 	omega = omega[:,omega.shape[0]:]
 	print(omega.shape)
 	print(np.count_nonzero(omega))
@@ -74,20 +67,28 @@ if __name__ == '__main__':
 	# relative info
 	# 1: which structral edges are the top important k? [per col]
 	s_topk = 5
-	sorted_idx = np.argsort(np.sum(omega,axis=0))[::-1]
+	s_sum = np.sum(omega_vis,axis=0)
+	print(s_sum.max(),s_sum.mean(),s_sum.min())
+	sorted_idx_s = np.argsort(s_sum)[::-1]
 	for i in range(s_topk):
-		print(sorted_idx[i])
-		idx = idx_dict[sorted_idx[i]]
-		print(idx)
+		print('\ncorrelated function number:',s_sum[sorted_idx_s[i]])
+		idx = idx_dict[sorted_idx_s[i]]
 		print(r_name[idx[0]],r_name[idx[1]])
 
 	# 2: does these edges exists for every subject in the original structral data?
 	vec, _ = data_prep(upenn=True)
-	import ipdb; ipdb.set_trace()
 	vec_s = vec.copy()
 	vec_s[vec_s!=0]=1
 	tmp = np.sum(vec_s,axis=0)
-	print(tmp[sorted_idx[:s_topk]]) #emm seems the answer is no
-	
+	print('\n',tmp[sorted_idx_s[:s_topk]],'\n') #emm seems the answer is no
+
 	# 3: for each functional activation, plot "which structral edges is correlated with it" [per row]
-	
+	f_topk = 5
+	f_sum = np.sum(omega_vis,axis=1)
+	print(f_sum.max(),f_sum.mean(),f_sum.min())
+	sorted_idx_f = np.argsort(f_sum)[::-1]
+	for i in range(f_topk):
+		idx = idx_dict[sorted_idx_f[i]]
+		print('\ncorrelated structral edge number:',f_sum[sorted_idx_f[i]])
+		print(r_name[idx[0]],r_name[idx[1]])
+		plot_edge(omega,r_name,idx_dict,sorted_idx_f[i])
