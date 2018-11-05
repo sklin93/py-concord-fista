@@ -40,12 +40,19 @@ def data_prep(upenn=False, normalize_s=False):
 		vec_s /= vec_s.max()
 	return vec_s, vec_f
 
+def s_f_pMat(d): # d is p/2
+	tmp_14 = np.identity(d)*2
+	tmp_23 = np.ones((d,d))
+	np.fill_diagonal(tmp_23, 2)
+	up = np.concatenate((tmp_14,tmp_23),axis=1)
+	low = np.concatenate((tmp_23,tmp_14),axis=1)
+	return np.concatenate((up,low),axis=0)
+
 def f_only(lam):
 	# original version
 	_, vec = data_prep(upenn=True)
 	fi = cc_fista(vec,lam,steptype=1)
 	print('Input vector shape: ', vec.shape)
-	# import ipdb; ipdb.set_trace()
 	start = time.time()
 	invcov = fi.infer()
 	print((time.time()-start)/60)
@@ -65,7 +72,6 @@ def s_f(lam, check_loss_only=False):
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
-	# import ipdb; ipdb.set_trace()
 	np.save(str(lam)+'.npy',omega)
 	print(np.count_nonzero(omega))
 	print(np.count_nonzero(omega[:,:4005]))
@@ -73,6 +79,18 @@ def s_f(lam, check_loss_only=False):
 	print(np.count_nonzero(omega[:,:4005].diagonal()))
 	print(np.count_nonzero(omega[:,4005:].diagonal()))
 	print(fi.loss())
+
+def s_f_direct(lam):
+	vec_s, vec_f = data_prep(upenn=True)
+	vec = np.concatenate((vec_f,vec_s), axis=1)
+	print('Input vector shape: ', vec.shape)
+	pMat = s_f_pMat(int(vec.shape[1]/2))
+	fi = cc_fista(vec, lam, pMat=pMat, steptype=3, const_ss=2.0)
+	start = time.time()
+	omega = fi.infer()
+	print((time.time()-start)/60)
+	import ipdb; ipdb.set_trace()
+	np.save('direct_'+str(lam)+'.npy',omega)
 
 def check_loss(D,X):
 	print(np.count_nonzero(X))
@@ -84,5 +102,6 @@ def check_loss(D,X):
 	print(pseudol(X,S@X.transpose()))
 
 if __name__ == '__main__':
-	f_only(lam=0.1)
+	# f_only(lam=0.1)
 	# s_f(lam=0.16, check_loss_only=False)
+	s_f_direct(lam=0.12)

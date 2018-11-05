@@ -51,8 +51,15 @@ class cc_fista(object):
 			if not penalize_diag:
 				np.fill_diagonal(self.LambdaMat, 0)
 			if pMat is not None:
+				""" pMat: entry==0 means result here must be 0, 
+				entry==2 means results here must be nonzero,
+				entry==1 is a normal entry """
 				self.LambdaMat[pMat==0] *= 100
+				self.LambdaMat[pMat==2] = 0
 			self.X0 = np.identity(p)
+			# d = int(p/2)
+			# np.fill_diagonal(self.X0[d:,:d],1)
+			# np.fill_diagonal(self.X0[:d,d:],1)
 		print('LambdaMat shape: ',self.LambdaMat.shape)
 		print('Init shape: ',self.X0.shape)
 		self.tol = tol
@@ -80,6 +87,8 @@ class cc_fista(object):
 		# const init
 		hn = hTh = Qn = f = 0.0
 		taun = alpha = 1.0
+		if self.steptype == 3:
+			taun = self.const_ss
 		c = 0.9
 		itr = diagitr = backitr = 0
 		loop = True
@@ -93,26 +102,30 @@ class cc_fista(object):
 			diagitr = backitr = 0
 			inner_ctr = 0
 
-			while True:
-				inner_ctr += 1
-				if v: print('inner_ctr', inner_ctr)
-				if diagitr != 0 or backitr != 0: 
-					tau = tau * c
+			if self.steptype == 3: # constant stepsize without inner loop
+				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
+			else:
+				while True:
+					inner_ctr += 1
+					if v: print('inner_ctr', inner_ctr)
+					if diagitr != 0 or backitr != 0: 
+						tau = tau * c
 
-				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat);
-				if Xn.diagonal().min()<1e-8 and diagitr<50:
-					diagitr += 1
-					continue
+					Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat);
+					if Xn.diagonal().min()<1e-8 and diagitr<50:
+						diagitr += 1
+						continue
 
-				Step = Xn - Theta
-				hTh = pseudol(Theta,WTh)
-				Qn = hTh + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
-				Wn = self.S @ Xn
-				hn = pseudol(Xn,Wn)
-				if hn > Qn:
-					backitr += 1
-				else:
-					break
+					Step = Xn - Theta
+					hTh = pseudol(Theta,WTh)
+					Qn = hTh + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
+					Wn = self.S @ Xn
+					hn = pseudol(Xn,Wn)
+					if hn > Qn:
+						backitr += 1
+					else:
+						break
+
 			if v: print('tau selected: ', tau)
 			alphan = (1 + sqrt(1+4*(alpha**2)))/2;
 			Theta = Xn + ((alpha-1)/alphan) * (Xn-X)
