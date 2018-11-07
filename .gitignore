@@ -6,3 +6,5 @@ build/
 config.yaml
 log*
 *.npy
+*.csv
+*.png

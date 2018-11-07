@@ -3,6 +3,7 @@ import numpy as np
 from cc_fista import cc_fista, standardize, pseudol
 import time, yaml
 from scipy.linalg import norm
+from scipy.stats.stats import pearsonr
 
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
@@ -69,7 +70,8 @@ def s_f(lam, check_loss_only=False):
 	if check_loss_only:
 		check_loss(vec,np.load(str(lam)+'.npy'))
 		return
-	fi = cc_fista(vec, lam, s_f=True, steptype=3, const_ss=2.0)
+	fi = cc_fista(vec, lam, s_f=True, record=True, steptype=3, const_ss=2.0)
+	# fi = cc_fista(vec, lam, s_f=True, record=True, steptype=2)
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
@@ -87,7 +89,7 @@ def s_f_direct(lam):
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
 	pMat = s_f_pMat(int(vec.shape[1]/2))
-	fi = cc_fista(vec, lam, pMat=pMat, steptype=3, const_ss=2.0)
+	fi = cc_fista(vec, lam, pMat=pMat)
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
@@ -108,31 +110,35 @@ def reconstruct_err(filename):
 	vec_s, vec_f = data_prep(upenn=True)
 	n = vec_s.shape[0]
 	omega = np.load(filename)
-	d = omega.shape[0]
+	d = int(omega.shape[0]/2)
 
-	vec = np.concatenate((vec_f,vec_s), axis=1)
-	S = standardize(vec)
-	print((omega.transpose()*(S@omega.transpose())).sum())
-	import ipdb; ipdb.set_trace()
-	omega = omega[:,d:]
+	# vec = np.concatenate((vec_f,vec_s), axis=1)
+	# S = standardize(vec)
+	# print((omega.transpose()*(S@omega.transpose())).sum())
+
+	omega = omega[:d,d:]
+	print(omega.min(),omega.mean(),omega.max())
+	print(omega.shape)
 	err = tot_err_perct = 0.0
 	for k in range(n):
 		cur_s = vec_s[k]
 		f_gt = vec_f[k]
 		f_model = np.zeros(d)
 		for i in range(d):
-			f_model[i] = (omega[i].dot(cur_s))
-		import ipdb; ipdb.set_trace()
-		cur_err = norm(f_model-f_gt)
-		err_perct = cur_err/norm(f_gt)
-		print(err_perct)
-		tot_err_perct += err_perct
-		err += cur_err
-	print('average error percentage',tot_err_perct/n)
-	return err
+			f_model[i] = - (omega[i].dot(cur_s))/omega[i,i]
+		print(f_model.min(),f_model.mean(),f_model.max())
+		# cur_err = norm(f_model-f_gt)
+		# err_perct = cur_err/norm(f_gt)
+		# print(err_perct)
+		print(pearsonr(f_model,f_gt))
+		# tot_err_perct += err_perct
+		# err += cur_err
+	# print('average error percentage',tot_err_perct/n)
+	# return err
 
 if __name__ == '__main__':
 	# f_only(lam=0.1)
-	# s_f(lam=0.16, check_loss_only=False)
-	# s_f_direct(lam=0.12)
-	print(reconstruct_err('0.08.npy'))
+	s_f(lam=0.08, check_loss_only=False)
+	# s_f_direct(lam=0.08)
+	# print(reconstruct_err('0.08.npy'))
+	# reconstruct_err('direct_0.08.npy')

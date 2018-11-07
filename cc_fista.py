@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import norm, inv
 from math import sqrt
+import csv
 
 def standardize(D):
 	S = D-np.tile(D.mean(axis=0),(D.shape[0],1))
@@ -26,7 +27,7 @@ def pseudol(X,W):
 class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, DisS=0,
-				penalize_diag=0, s_f = False, v=True,
+				penalize_diag=0, s_f = False, v=True, record=False,
 				tol=1e-5, maxit=300, steptype=1, const_ss=1.5):
 		super(cc_fista, self).__init__()
 		
@@ -69,6 +70,8 @@ class cc_fista(object):
 		self.s_f = s_f
 		self.result = None
 		self.v = v
+		self.record = record
+		self.lam = lam
 
 	def infer(self):
 		if self.s_f:
@@ -156,8 +159,13 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
-			if v: print('err',subgnorm/Xnnorm)
-			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
+			cur_err = subgnorm/Xnnorm
+			if v: print('err',cur_err)
+			if self.record:
+				with open('itrloss_'+str(self.lam)+'.csv','a') as f:
+					fwriter = csv.writer(f)
+					fwriter.writerow([itr]+[cur_err])
+			loop = itr<self.maxit and cur_err>self.tol
 		self.result = Xn
 		return Xn
 
@@ -244,8 +252,13 @@ class cc_fista(object):
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
 			itr += 1
-			if v: print('err',subgnorm/Xnnorm)
-			loop = itr<self.maxit and subgnorm/Xnnorm>self.tol
+			cur_err = subgnorm/Xnnorm
+			if v: print('err',cur_err)
+			if self.record:
+				with open('itrloss_'+str(self.lam)+'.csv','a') as f:
+					fwriter = csv.writer(f)
+					fwriter.writerow([itr]+[cur_err])
+			loop = itr<self.maxit and cur_err>self.tol
 		self.result = Xn
 		return Xn
 
