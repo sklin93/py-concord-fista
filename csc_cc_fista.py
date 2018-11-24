@@ -1,32 +1,38 @@
 import csv
 import numpy as np
+import cvxopt as cvx
 
-from amth import sqrt
+from math import sqrt
+from scipy import sparse
 from scipy.linalg import norm, inv
+from pprint import pprint
 
 
 class csc_concord_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 
-    def __init__(self, D, sample_cov=False, record=True, 
-        pMat=None, p_gamma=1.0, p_lambda=1.0, 
+    def __init__(self, D, num_var, sample_cov=False, record=True,
+        pMat=None, p_gamma=1.0, p_lambda=1.0,
         verbose=True, MAX_ITR=300, TOL=1e-5, p_tau=0.5, c_outer=0.9,
-        alpha_out=1.0, step_type_out=3, 
-        verbose_inn=True, MAX_ITR_inn=300, TOL_inn=1e-5, p_kappa=0.5, 
+        alpha_out=1.0, step_type_out=3,
+        verbose_inn=True, MAX_ITR_inn=300, TOL_inn=1e-5, p_kappa=0.5,
         c_inner=0.9, alpha_inn=1.0, step_type_inn=3):
 
-        super(csc_concord_fista, self).__init__() 
+        super(csc_concord_fista, self).__init__()
+        self.record      = record
 
-        # inout parameters of primal problem 
-        self.S           = D if sample_cov else self.get_sample_cov(D)
+        # inout parameters of primal problem
+        self.S           = D.copy() if sample_cov else self.get_sample_cov(D)
+        self.pMat        = pMat.copy()
         self.p_gamma     = p_gamma
         self.p_lambda    = p_lambda
+        self.num_var     = num_var
 
         # outer stage parameters
         self.verbose     = verbose
         self.MAX_ITR     = MAX_ITR
         self.TOL         = TOL
-        self.p_tau       = p_tau  
+        self.p_tau       = p_tau
         self.c_outer     = c_outer
         self.alpha_out   = alpha_out
         self.step_type_out  = step_type_out
@@ -35,19 +41,19 @@ class csc_concord_fista(object):
         self.verbose_inn = verbose_inn
         self.MAX_ITR_inn = MAX_ITR_inn
         self.TOL_inn     = TOL_inn
-        self.p_kappa     = p_kappa 
+        self.p_kappa     = p_kappa
         self.c_inner     = c_inner
         self.alpha_inn   = alpha_inn
         self.step_type_inn  = step_type_inn
 
         # solution initialization
         # make sure initial B_init has all zero diagonals
-        self.B_init     = 
-        self.Omg_init   = 
+        self.Omg_init   = np.identity(num_var)
+        self.B_init     = np.zeros(self.Omg_init.shape)
 
         # meta variables
         self.A           = np.zeros(self.Omg_init.shape)
-        self.A_X         = np.zeros(self.Omg_init.shape) 
+        self.A_X         = np.zeros(self.Omg_init.shape)
 
         """
         Notes:
@@ -62,7 +68,7 @@ class csc_concord_fista(object):
         num_sample = D.shape[0]
         Y = D - np.tile(D.mean(axis=0), (num_sample,1))
         # should we use biased S-estimator?
-        S = Y.transpose() @ Y / (num_sample - 1) 
+        S = Y.transpose() @ Y / (num_sample - 1)
         return S
 
     def likelihood_convset(self, Omg, SOmg):
@@ -83,8 +89,8 @@ class csc_concord_fista(object):
         """ update Omg_t under convex set constraint """
 
         # gradient descent step
-        self.A   = Th - tau * G 
-        self.A_X = self.A
+        self.A   = Th - tau * G
+        self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
 
         # use inner stage to compute current optimal B
@@ -98,6 +104,10 @@ class csc_concord_fista(object):
 
         return Omg
 
+    def solver_linfty_cvx(self):
+        """cvx version of inner stage solver"""
+        pass
+
     def update_linfty(self, Th_, G_, kappa):
         """ update B_t' under l_infty norm constraint """
 
@@ -105,12 +115,13 @@ class csc_concord_fista(object):
         Note: Such update strategy will guarantee all zeros on diagonal of B,
         if the initial Th_ has all zero diagonals. """
         A_ = Th_ - kappa * G_
+        if self.verbose_inn: pprint(A_)
         B  = np.sign(A_) * np.minimum(abs(A_), np.ones(A_.shape))
         return B
 
     def solver_convset(self):
         """ outer stage optimization via FISTA """
-        
+
         tau_n  = self.p_tau
         alpha  = self.alpha_out
         Lambda = self.p_lambda * np.ones(self.Omg_init.shape)
@@ -123,11 +134,11 @@ class csc_concord_fista(object):
         # Theta & initial gradient
         Th   = self.Omg_init.copy()
         ThS  = Th @ self.S  # Theta*S or S*Theta
-        G = -2 * np.diag(1.0/Th.diagonal()) + 2 * ThS 
+        G = -2 * np.diag(1.0/Th.diagonal()) + 2 * ThS
 
         # initial A
-        self.A   = Th - self.p_tau * G 
-        self.A_X = self.A
+        self.A   = Th - self.p_tau * G
+        self.A_X = self.A.copy()
 
         # looping for optimization steps
         loop  = True
@@ -182,7 +193,7 @@ class csc_concord_fista(object):
                 """ taun = (Step.transpose()@Step).trace() \
                              / (Step.transpose()@(Gn-G)).trace()
                 using *.sum() is much faster """
-                
+
             # update for next opt iteration
             alpha   = alpha_n
             Omg     = Omg_n
@@ -191,12 +202,7 @@ class csc_concord_fista(object):
             itr     += 1
 
             # won't be used, just for printing
-            # f       = h + (abs(Omg_n)).sum() 
-            
-            if self.record:
-                with open('itrloss_' + str(self.p_lambda)+'.csv', 'a') as f:
-                    fwriter = csv.writer(f)
-                    fwriter.writerow([itr] + [cur_err])
+            # f       = h + (abs(Omg_n)).sum()
 
             """ compute subgradient error
             1. As Omg_n has been located in the constrained convex set, it is
@@ -207,15 +213,20 @@ class csc_concord_fista(object):
             3. Why does we use the sign of Omg_n rather than Th? """
             tmp       = G_n + np.sign(Omg_n) * Lambda # sign(Omg_n) or sign(Th)
             subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
-            subg[Omg_n != 0] = tmp[Omg_n != 0] 
+            subg[Omg_n != 0] = tmp[Omg_n != 0]
             cur_err   = norm(subg) / norm(Omg_n)
 
-            # check termination condition: 
+            # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
+
+            if self.record:
+                with open('itrloss_' + str(self.p_lambda)+'.csv', 'a') as f:
+                    fwriter = csv.writer(f)
+                    fwriter.writerow([itr] + [cur_err])
 
         # end of (while loop)
 
-        self.result = Omg_n
+        self.result = Omg_n.copy()
         return Omg_n
     # end of solver_convset
 
@@ -229,10 +240,10 @@ class csc_concord_fista(object):
         # B and initial likelihood
         B   = self.B_init.copy()
         W   = self.A_X - self.p_gamma * self.p_lambda * B
-        h   = self.likelihood_convset(W)
-        
+        g   = self.likelihood_linfty(W)
+
         # Theta_ initialization and get initial gradient
-        Th_ = self.B_init.copy() 
+        Th_ = self.B_init.copy()
         G_  = 2 * self.p_lambda * self.p_gamma * self.pMat * W
 
         # looping for optimization steps
@@ -243,9 +254,13 @@ class csc_concord_fista(object):
             itr_back = 0
             kappa    = kappa_n
 
+            if self.verbose_inn: print(" - - - inner loop [itr " + str(itr) + "]: \n")
+
             # constant step length
             if self.step_type_inn == 3:
                 B_n = self.update_linfty(Th_, G_, kappa)
+                W_n = self.A_X - self.p_gamma * self.p_lambda * B_n
+                g_n = self.likelihood_linfty(W_n)
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
@@ -255,7 +270,7 @@ class csc_concord_fista(object):
 
                     # check backtracking condition
                     Step = B_n - Th_
-                    R_n  = g + (Step*G_).sum() + (1/(2*kappa))*(norm(Step)**2)
+                    R_n  = g + (Step*G_).sum() + (1/(2*kappa)) * (norm(Step)**2)
                     W_n  = self.A_X - self.p_gamma * self.p_lambda * B_n
                     g_n  = self.likelihood_linfty(W_n)
                     if g_n > R_n: # sufficient descent condition
@@ -275,7 +290,7 @@ class csc_concord_fista(object):
             if self.step_type_inn == 0:
                 kappa_n = 1
             elif self.step_type_inn == 1:
-                kappa_n = tau
+                kappa_n = kappa
             elif self.step_type_inn == 2:
                 kappa_n = (Step * Step).sum() / (Step * (G_n_ - G_)).sum()
                 kappa_n = kappa if kappa_n < 0.0 else kappa_n
@@ -295,40 +310,86 @@ class csc_concord_fista(object):
             we can directly use the gradient of g which is quaratic."""
             cur_err   = norm(G_n_) / norm(B_n)
 
-            # check termination condition: 
-            loop = itr < self.MAX_ITR_inner and cur_err > self.TOL_inner
+            # print
+            print(" - - - cur_err: " + str(cur_err) + ", g(B_n) = " + str(g))
+            if self.verbose_inn: pprint(B_n)
+
+            # check termination condition:
+            loop = itr < self.MAX_ITR_inn and cur_err > self.TOL_inn
         # end of (while loop)
 
         return B_n
     # end of solver_convset
 
 
-def test_synthetic():
+def set_mat_from_triu(vec, num_var, nnz_index):
+    """ Build a symmetric matrix [M] from
+        a given vector [vec] which contains all upper triangular entries
+        and a corresponding non-zero index vector [nnz_index] """
 
-    num_var   = 10
-    num_smp   = 200
-    
+    num_edge = int(num_var*(num_var-1)/2)
+    vec[np.setdiff1d(range(num_edge), nnz_index)] = 0
+    M = np.zeros((num_var, num_var))
+    M[np.triu_indices(M.shape[0], 1)] = vec
+    M = M + M.transpose() + np.identity(num_var)
+    return M
 
-    # randomly select a certain number of edges 
-    # as non-zeros in partial correlation graph
-    num_nnz   = 5
+def create_sparse_mat(num_var):
+
+    num_nnz   = 3
     num_edge  = int(num_var*(num_var-1)/2)
     nnz_index = np.random.choice(range(num_edge), num_nnz, replace=False)
     nnz_index.sort()
 
     # generate inverse covariance matrix
     cov_vec   = np.random.rand(num_edge) * 0.3 + 0.7
-    cov_vec[np.setdiff1d(range(num_edge),nnz_index)] = 0
-    Omg = np.zeros(num_var)
-    Omg[np.triu_indices(Omg.shape[0],1)] = cov_vec
-    Omg = Omg + Omg.transpose() + np.identity(num_var)
+    Omg = set_mat_from_triu(cov_vec, num_var, nnz_index)
+
+    # generate convex set mask
+    mask_vec = np.ones(num_edge)
+    pMat = set_mat_from_triu(mask_vec, num_var, nnz_index)
+
+    return [Omg, pMat]
+
+
+def test_inner_stage():
+
+    """ test correctness of inner-stage FISTA solver"""
+
+    pass
+
+
+def test_synthetic():
+
+    num_var   = 5
+    num_smp   = 200
+    pct_nnz   = 0.3
+    base_nnz  = 0.7
+
+    # randomly select a certain number of edges
+    # as non-zeros in partial correlation graph
+
+    # create sparse symmetric positive definite matrix
+    Spr = sparse.random(num_var, num_var, density=pct_nnz).A
+    Spr[Spr != 0] = Spr[Spr != 0] * (1 - base_nnz) + base_nnz
+    print("triu-nonzeros of Spr: " + str(np.count_nonzero(Spr)))
+    Omg = Spr @ Spr.transpose()
+    np.fill_diagonal(Omg, 0)
+    Omg = Omg + np.identity(num_var)
+    print("triu-nonzeros of Omg: " + str((np.count_nonzero(Omg)-num_var)/2.0))
+
+    # create convex set mask
+    pMat = Omg.copy()
+    pMat[pMat != 0] = 1
+    # num_nnz = np.count_nonzero(pMat)
 
     # generate samples from target distribution
     Sig = inv(Omg)
     D   = np.random.multivariate_normal(np.zeros(num_var), Sig, num_smp)
 
     # partial correlation graph estimation
-    problem  = csc_concord_fista(D, 0.5, verbose=True, verbose_inn=True)
+    problem  = csc_concord_fista(D, num_var=num_var, pMat=pMat,
+                                 p_lambda=0.5, verbose=False, verbose_inn=False)
     Omg_est  = problem.solver_convset()
 
     # print('non-overlap nonzero entry count: ', np.count_nonzero(omega-invcov))
@@ -337,6 +398,6 @@ def test_synthetic():
 
 
 if __name__ == "__main__":
-    
+
     test_synthetic()
 
