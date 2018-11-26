@@ -29,6 +29,16 @@ class cc_fista(object):
 	def __init__(self, D, lam, pMat=None, DisS=0,
 				penalize_diag=0, s_f = False, v=True, record=False,
 				tol=1e-5, maxit=300, steptype=1, const_ss=1.5):
+		'''
+		D is input data
+		lam is L1 penalization paramater
+		pMat is custom network constraints
+		DisS controls whether standardize data or not
+		penalize_diag alters L1 penalty on diagonal entries
+		s_f is for structure-function coupling
+		v for verbosity
+		record for writing loss vs iteration into a csv file
+		'''
 		super(cc_fista, self).__init__()
 		
 		p = D.shape[1]
@@ -40,7 +50,7 @@ class cc_fista(object):
 		if s_f:
 			d = int(p/2)
 			# penalty
-			ff_lambdamat = lam*100*np.ones((d,d))
+			ff_lambdamat = lam*10000*np.ones((d,d))
 			np.fill_diagonal(ff_lambdamat,0)
 			fs_lambdamat = lam*np.ones((d,d))
 			np.fill_diagonal(fs_lambdamat,0)
@@ -55,9 +65,10 @@ class cc_fista(object):
 				""" pMat: entry==0 means result here must be 0, 
 				entry==2 means results here must be nonzero,
 				entry==1 is a normal entry """
-				self.LambdaMat[pMat==0] *= 100
+				self.LambdaMat[pMat==0] *= 10000
 				self.LambdaMat[pMat==2] = 0
 			self.X0 = np.identity(p)
+			# for s_f_direct
 			# d = int(p/2)
 			# np.fill_diagonal(self.X0[d:,:d],1)
 			# np.fill_diagonal(self.X0[:d,d:],1)
@@ -283,7 +294,7 @@ def test():
 	sigma = inv(omega)
 	vectors = np.random.multivariate_normal(np.zeros(p),sigma,200)
 	# infer
-	fi = cc_fista(vectors,0.5,v=False) # v for verbosity
+	fi = cc_fista(vectors,0.5,v=False)
 	invcov = fi.infer()
 	# info
 	print(np.count_nonzero(omega))

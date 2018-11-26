@@ -70,8 +70,8 @@ def s_f(lam, check_loss_only=False):
 	if check_loss_only:
 		check_loss(vec,np.load(str(lam)+'.npy'))
 		return
-	fi = cc_fista(vec, lam, s_f=True, record=True, steptype=3, const_ss=2.0)
-	# fi = cc_fista(vec, lam, s_f=True, record=True, steptype=2)
+	fi = cc_fista(vec, lam, s_f=True, steptype=3, const_ss=1.5)
+	# fi = cc_fista(vec, lam, s_f=True)
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
@@ -83,6 +83,7 @@ def s_f(lam, check_loss_only=False):
 	print(np.count_nonzero(omega[:,:d].diagonal()))
 	print(np.count_nonzero(omega[:,d:].diagonal()))
 	print(fi.loss())
+	import ipdb; ipdb.set_trace()
 
 def s_f_direct(lam):
 	vec_s, vec_f = data_prep(upenn=True)
@@ -138,7 +139,7 @@ def reconstruct_err(filename):
 
 if __name__ == '__main__':
 	# f_only(lam=0.1)
-	s_f(lam=0.08, check_loss_only=False)
+	s_f(lam=0.08, check_loss_only=False) # use 0.0012 for normalization 2
 	# s_f_direct(lam=0.08)
 	# print(reconstruct_err('0.08.npy'))
 	# reconstruct_err('direct_0.08.npy')
