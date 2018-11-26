@@ -50,8 +50,8 @@ def plot_edge(omega, r_name, idx, edge_idx):
 
 if __name__ == '__main__':
 	r_name = info_dict['data']['aal']
-
-	omega = np.load('0.0009_WM.npy') #p*2p
+	task = 'WM'
+	omega = np.load('0.0009_'+task+'.npy') #p*2p
 	omega = omega[:,omega.shape[0]:]
 	print(omega.shape)
 	print(np.count_nonzero(omega))
@@ -66,9 +66,8 @@ if __name__ == '__main__':
 	 
 	plt.imshow(omega_vis)
 	plt.axis('off')
-	plt.savefig(fdir+'fs_'+task+'.png',
-	                bbox_inches = 'tight', pad_inches = 0)
-	# plt.show()
+	plt.savefig('fs_'+task+'.png', bbox_inches = 'tight', pad_inches = 0)
+	plt.show()
 
 	idx_dict = build_dict(len(r_name))
 	# relative info
