@@ -8,6 +8,8 @@ from scipy.stats.stats import pearsonr
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
 
+fdir = 'fs_results/'
+
 def data_prep(upenn=False, normalize_s=False):
 	if upenn:
 		dataMat = loadmat(info_dict['data_dir_Bassette']+info_dict['Bassette_file'])
@@ -75,7 +77,7 @@ def s_f(lam, check_loss_only=False):
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
-	np.save(str(lam)+'.npy',omega)
+	np.save(fdir+str(lam)+'.npy',omega)
 	print(np.count_nonzero(omega))
 	d = omega.shape[0]
 	print(np.count_nonzero(omega[:,:d]))
@@ -95,7 +97,7 @@ def s_f_direct(lam):
 	omega = fi.infer()
 	print((time.time()-start)/60)
 	import ipdb; ipdb.set_trace()
-	np.save('direct_'+str(lam)+'.npy',omega)
+	np.save(fdir+'direct_'+str(lam)+'.npy',omega)
 
 def check_loss(D,X):
 	print(np.count_nonzero(X))
