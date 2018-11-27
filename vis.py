@@ -65,7 +65,7 @@ if __name__ == '__main__':
 	for _ in range(3):
 		omega_vis = binary_dilation(omega_vis)
 	 
-	plt.imshow(omega_vis)
+	plt.imshow(omega_vis,cmap='Blues')
 	plt.axis('off')
 	plt.savefig(fdir+'fs_'+task+'.png', bbox_inches = 'tight', pad_inches = 0)
 	plt.show()
