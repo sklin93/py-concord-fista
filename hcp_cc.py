@@ -42,6 +42,7 @@ def data_prep(upenn=False, normalize_s=False):
 	if normalize_s:
 		vec_s -= vec_s.min()
 		vec_s /= vec_s.max()
+	assert vec_s.shape == vec_f.shape, 'F and S size mismatch.'
 	return vec_s, vec_f
 
 def s_f_pMat(d): # d is p/2
