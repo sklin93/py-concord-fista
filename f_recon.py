@@ -19,14 +19,20 @@ k = np.count_nonzero(omega) # number of model parameters.
 X = Variable((p,p))
 constraints = [X[omega==0]==0]
 
-pred_f = X.__matmul__(vec_s.T)
-loss = norm(vec_f-pred_f.T)
+def loss_fn(X, vec_s, vec_f):
+    return pnorm(matmul(vec_s, X.T) - vec_f, p=2)**2
+
+def regularizer(X):
+    return pnorm(X, p=2)**2
+
+def objective_fn(X, vec_s, vec_f, lambd):
+    return loss_fn(X, vec_s, vec_f) + lambd * regularizer(X)
+
 
 lambd = 0.01
-reg = norm(X, 2)
-prob = Problem(Minimize(loss/n + lambd*reg),constraints)
+prob = Problem(Minimize(objective_fn(X,vec_s,vec_f,lambd)),constraints)
 print('prob set.')
-prob.solve(solver=SCS)
+prob.solve()
 import ipdb; ipdb.set_trace()
 
 # compare with random positioned nz entries, with a same level sparsity

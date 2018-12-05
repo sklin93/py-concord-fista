@@ -25,9 +25,8 @@ def build_dict(r):
 			ctr = ctr + 1
 	return idx
 
-def plot_edge(omega, r_name, idx, edge_idx):
+def get_graph(omega, r, idx, edge_idx):
 	[d,_] = omega.shape
-	r = len(r_name) # num regions
 
 	G = nx.Graph()
 	G.add_nodes_from(np.arange(r))
@@ -37,6 +36,11 @@ def plot_edge(omega, r_name, idx, edge_idx):
 			G.add_edge(idx[i][0],idx[i][1])
 	## Delete nodes with degree 0
 	G.remove_nodes_from(list(nx.isolates(G)))
+	return G
+
+def plot_edge(omega, r_name, idx, edge_idx):
+	r = len(r_name)
+	G = get_graph(omega, r, idx, edge_idx)
 	print('connected components number:', nx.number_connected_components(G))
 	## Draw
 	options = {'node_color': '#FA8072', 'edge_color': '#2C3E50', 
@@ -51,8 +55,8 @@ def plot_edge(omega, r_name, idx, edge_idx):
 if __name__ == '__main__':
 	r_name = info_dict['data']['aal']
 	fdir = 'fs_results/'
-	task = 'WM'
-	omega = np.load(fdir+'0.0009_'+task+'.npy') #p*2p
+	task = 'EMOTION'
+	omega = np.load(fdir+'0.0014_1stage_er_'+task+'.npy') #p*2p
 	omega = omega[:,omega.shape[0]:]
 	print(omega.shape)
 	print(np.count_nonzero(omega))
@@ -85,7 +89,7 @@ if __name__ == '__main__':
 		print(r_name[idx[0]],r_name[idx[1]])
 
 	# 2: does these edges exists for every subject in the original structral data?
-	vec, _ = data_prep(upenn=False)
+	vec, _ = data_prep(task)
 	vec_s = vec.copy()
 	# vec_s[vec_s!=0]=1
 	tmp = np.sum(vec_s,axis=0)
@@ -102,3 +106,15 @@ if __name__ == '__main__':
 		print('\ncorrelated structral edge number:',f_sum[sorted_idx_f[i]])
 		print(r_name[idx[0]],r_name[idx[1]])
 		plot_edge(omega,r_name,idx_dict,sorted_idx_f[i])
+
+	# 4: check connected component for all function edges
+	cc = 0
+	ctr = 0
+	for i in range(omega.shape[0]):
+		G = get_graph(omega, len(r_name), idx_dict, i)
+		if f_sum[i] > 1:
+			print('nz:', f_sum[i], 'cc:', nx.number_connected_components(G))
+			cc += nx.number_connected_components(G)
+			ctr += 1
+	print('Average connected component number:', cc/ctr)
+
