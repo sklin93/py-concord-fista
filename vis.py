@@ -51,11 +51,16 @@ def plot_edge(omega, r_name, idx, edge_idx):
 	G = nx.relabel_nodes(G,labels)
 	nx.draw(G, with_labels=True, **options) #font_weight='bold'
 	plt.show()
+	nx.draw(nx.k_core(G,2), with_labels=True, **options)
+	plt.show()
 
 if __name__ == '__main__':
-	r_name = info_dict['data']['aal']
 	fdir = 'fs_results/'
 	task = 'EMOTION'
+	if task == 'resting':
+		r_name = info_dict['data']['aal']
+	else:
+		r_name = info_dict['data']['hcp']
 	omega = np.load(fdir+'0.0014_1stage_er_'+task+'.npy') #p*2p
 	omega = omega[:,omega.shape[0]:]
 	print(omega.shape)
@@ -104,7 +109,7 @@ if __name__ == '__main__':
 	for i in range(f_topk):
 		idx = idx_dict[sorted_idx_f[i]]
 		print('\ncorrelated structral edge number:',f_sum[sorted_idx_f[i]])
-		print(r_name[idx[0]],r_name[idx[1]])
+		print(sorted_idx_f[i],r_name[idx[0]],r_name[idx[1]])
 		plot_edge(omega,r_name,idx_dict,sorted_idx_f[i])
 
 	# 4: check connected component for all function edges
@@ -117,4 +122,3 @@ if __name__ == '__main__':
 			cc += nx.number_connected_components(G)
 			ctr += 1
 	print('Average connected component number:', cc/ctr)
-
