@@ -1,4 +1,5 @@
 import numpy as np
+import sys
 from cvxpy import *
 
 from hcp_cc import data_prep
@@ -9,12 +10,12 @@ import yaml
 with open('config.yaml') as info:
 	info_dict = yaml.load(info)
 
-vec_s, vec_f = data_prep(upenn=False)
+task = sys.argv[1]
+vec_s, vec_f = data_prep(task)
 n, p = vec_s.shape
-task = info_dict['f_file'][6:-4]
 # load omega
-omega = load_omega(task)
-k = np.count_nonzero(omega) # number of model parameters.
+omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
+# k = np.count_nonzero(omega) # number of model parameters.
 
 X = Variable((p,p))
 constraints = [X[omega==0]==0]

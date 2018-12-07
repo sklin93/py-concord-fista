@@ -3,6 +3,7 @@ import networkx as nx
 import sys
 from hcp_cc import data_prep
 from vis import build_dict, get_graph
+from common_nonzero import load_omega
 import yaml
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
@@ -15,12 +16,7 @@ if task == 'resting':
 else:
 	r_name = info_dict['data']['hcp']
 r = len(r_name)
-omega = np.load(fdir+'0.0014_1stage_er2_'+task+'.npy') #p*2p
-omega = omega[:,omega.shape[0]:]
-print(omega.shape)
-print(np.count_nonzero(omega))
-
-omega[omega!=0] = 1
+omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
 idx_dict = build_dict(r)
 
 # common nodes:

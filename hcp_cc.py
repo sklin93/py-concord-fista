@@ -79,7 +79,7 @@ def s_f(task, lam, check_loss_only=False):
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
-	np.save(fdir+str(lam)+'_1stage_er_'+task+'.npy',omega)
+	np.save(fdir+str(lam)+'_1stage_er2_'+task+'.npy',omega)
 	print(np.count_nonzero(omega))
 	d = omega.shape[0]
 	print(np.count_nonzero(omega[:,:d]))
@@ -177,4 +177,4 @@ if __name__ == '__main__':
 	# f_only(task,lam=0.1)
 	# s_f(task,lam=0.0014, check_loss_only=False) # use 0.0012 for normalization 2
 	# s_f_direct(task,lam=0.08)
-	reconstruct_err(task,fdir+'0.0014_1stage_er_'+task+'.npy')
+	reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')

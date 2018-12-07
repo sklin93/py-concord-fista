@@ -3,9 +3,12 @@ import numpy as np
  
 tasks = ['EMOTION','GAMBLING','LANGUAGE','MOTOR','RELATIONAL','SOCIAL','WM']
  
-def load_omega(task,fdir='fs_results/',lam=0.0009):
-    omega = np.load(fdir+str(lam)+'_'+task+'.npy')
+def load_omega(task,fdir='fs_results/',mid='_',lam=0.0009,vis=True):
+    omega = np.load(fdir+str(lam)+mid+task+'.npy')
     omega = omega[:,omega.shape[0]:]
+    if vis: 
+        print(omega.shape)
+        print(np.count_nonzero(omega))
     omega[omega!=0]=1
     return omega
  
