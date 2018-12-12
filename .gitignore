@@ -9,3 +9,4 @@ log*
 *.npy
 *.csv
 *.png
+*_hc
