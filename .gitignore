@@ -10,3 +10,4 @@ log*
 *.csv
 *.png
 *_hc
+*_rnd

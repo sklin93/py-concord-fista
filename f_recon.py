@@ -6,13 +6,18 @@ from scipy.stats.stats import pearsonr
 
 from hcp_cc import data_prep
 from common_nonzero import load_omega, nz_share
+from common_2core import common_edges
+from vis import build_dict
 
 task = sys.argv[1]
 fdir = 'fs_results/'
 vec_s, vec_f = data_prep(task)
 n, p = vec_s.shape
 # load omega
-omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
+if task == 'resting':
+	omega = load_omega(task,mid='_',lam=0.1)
+else:
+	omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
 
 def p_val(result):
 	pred_f = vec_s@result.T
@@ -24,9 +29,11 @@ def p_val(result):
 		pval_tot += pval
 	return pval_tot/n
 
-check_only = False
+check_only = True
 use_rnd = False
-'''
+''' 
+# direct regression (OOM)
+
 X = Variable((p,p))
 
 def loss_fn(X, vec_s, vec_f):
@@ -69,15 +76,38 @@ def objective_fn2(w, s, f, lam, vec):
 
 if check_only:
 	result = np.load(fdir+'weights_'+task+'.npy')
+	print(np.count_nonzero(result))
 	print(p_val(result))
+	import yaml
+	with open('config.yaml') as info:
+		info_dict = yaml.load(info)
+	if task == 'resting':
+		r_name = info_dict['data']['aal']
+	else:
+		r_name = info_dict['data']['hcp']
+	r = len(r_name)
+	idx_dict = build_dict(r)
+
+	edge = common_edges(omega, r_name, idx_dict, save=False)
+
+	sorted_idx = np.unravel_index(result.argsort(axis=None)[::-1],result.shape)
+	topk = 20
+	ctr = 0
+	for i in range(len(sorted_idx[0])):
+		if ctr >= topk:
+			break
+		if sorted_idx[0][i] != sorted_idx[1][i]:
+			print(sorted_idx[0][i], sorted_idx[1][i], result[sorted_idx[0][i], sorted_idx[1][i]])
+			print(r_name[idx_dict[sorted_idx[1][i]][0]], r_name[idx_dict[sorted_idx[1][i]][1]])
+			ctr += 1
 else:
 	if use_rnd:
 		# compare with random positioned nz entries, with a same level sparsity
 		rnd_w = np.zeros(omega.shape)
-		idx = np.random.choice(d*d,np.count_nonzero(omega),replace=False)
+		idx = np.random.choice(p*p,np.count_nonzero(omega),replace=False)
 		ctr = 0
-		for i in range(d):
-			for j in range(d):
+		for i in range(p):
+			for j in range(p):
 				if ctr in idx:
 					rnd_w[i,j] = 1
 				ctr += 1
@@ -85,9 +115,11 @@ else:
 		omega = rnd_w
 	
 	s = vec_s
-	lambd_values = np.logspace(-1, 0, 10)
+	# lambd_values = np.logspace(-1, 1, 10)
+	lambd_values = [0.33]
 	hard_constraint = True
-	pval_values = []
+	# pval_values = []
+	_min = 1
 	for lambd in lambd_values:
 		result = []
 		for f_idx in range(p):
@@ -111,10 +143,13 @@ else:
 
 		result = np.stack(result)
 		result[result<1e-5] = 0
-		# np.save(fdir+'weights_'+task+'.npy', result)
 		cur_pval = p_val(result)
+		# save the best
+		if cur_pval < _min:
+			np.save(fdir+'weights_'+task+'.npy', result)
+			_min = cur_pval
 		print(lambd, np.count_nonzero(result), cur_pval)
-		pval_values.append(cur_pval)
+		# pval_values.append(cur_pval)
 		'''
 		# check if results all fall in nonzero positions (ratio should be 1)
 		tmp = result.copy()
