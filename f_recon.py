@@ -9,7 +9,7 @@ from common_nonzero import load_omega, nz_share
 from common_2core import common_edges
 from vis import build_dict
 
-def p_val(result):
+def p_val(vec_s, vec_f, result):
 	pred_f = vec_s@result.T
 	print(pred_f.shape)
 	n = pred_f.shape[0]
@@ -56,16 +56,18 @@ def result_check(fdir, task, omega):
 			print(r_name[idx_dict[sorted_idx[1][i]][0]], r_name[idx_dict[sorted_idx[1][i]][1]])
 			ctr += 1
 
-def regression(s, vec_f, omega, fdir, use_rnd=False, use_train=False,
+def regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=False,
 				hard_constraint=True, check_constraint=False):
 	if use_train:
-		train_num = int(s.shape[0]*0.8)
-		s = s[:train_num,:]
-		vec_f = vec_f[:train_num,:]	
-	n, p = s.shape
+		train_num = int(vec_s.shape[0]*0.8)
+		train_s = vec_s[:train_num,:]
+		train_f = vec_f[:train_num,:]	
+	else:
+		train_s = vec_s
+		train_f = vec_f
+	p = vec_s.shape[1]
 	if use_rnd:
 		# compare with random positioned nz entries, with a same level sparsity
-		#TODO: set diag to nz and others rnd
 		rnd_w = np.zeros(omega.shape)
 		idx = np.random.choice(p*p,np.count_nonzero(omega),replace=False)
 		ctr = 0
@@ -84,28 +86,36 @@ def regression(s, vec_f, omega, fdir, use_rnd=False, use_train=False,
 		result = []
 		for f_idx in range(p):
 			w = Variable(p)
-			f = vec_f[:,f_idx]
+			f = train_f[:,f_idx]
 			if hard_constraint:
 				constraints = [w[omega[f_idx]==0] == 0]
-				prob = Problem(Minimize(objective_fn(w, s, f, lambd)),constraints)
+				prob = Problem(Minimize(objective_fn(w, train_s, f, lambd)),constraints)
 			else:
 				vec = np.ones(p)
 				vec[omega[f_idx]==0] *= 1e15
-				prob = Problem(Minimize(objective_fn2(w, s, f, lambd, vec)))
-
+				prob = Problem(Minimize(objective_fn2(w, train_s, f, lambd, vec)))
 			prob.solve()
 			# if prob.status not in ["infeasible", "unbounded"]:
 			# 	print("Optimal value: %s" % prob.value)
 			# for variable in prob.variables():
 			# 	print("Variable %s: value %s" % (variable.name(), variable.value))
 			result.append(w.value)
-
 		result = np.stack(result)
 		result[result<1e-5] = 0
-		cur_pval = p_val(result)
+
+		if use_train:
+			val_s = vec_s[train_num:,:]
+			val_f = vec_f[train_num:,:]
+		else:
+			val_s = vec_s
+			val_f = vec_f
+		cur_pval = p_val(val_s, val_f, result)
 		# save the best
 		if cur_pval < _min:
-			np.save(fdir+'weights_'+task+'.npy', result)
+			if use_train:
+				np.save(fdir+'weights_train_'+task+'.npy', result)
+			else:
+				np.save(fdir+'weights_'+task+'.npy', result)
 			_min = cur_pval
 		print(lambd, np.count_nonzero(result), cur_pval)
 		if check_constraint:
@@ -124,9 +134,9 @@ if __name__ == '__main__':
 	if task == 'resting':
 		omega = load_omega(task,mid='_',lam=0.1)
 	else:
-		omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-
+		# omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
+		omega = load_omega(task,mid='_er_train_',lam=0.0014)
 	use_train = True
 
-	regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=True)
+	regression(vec_s, vec_f, omega, fdir, use_rnd=True, use_train=True)
 	# result_check(fdir, task, omega)

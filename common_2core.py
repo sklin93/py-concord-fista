@@ -46,7 +46,7 @@ def common_edges(omega, r_name, idx_dict, vis_dir='', save=True):
 		if flat_app_edge[cur_idx]!=0:
 			print(flat_app_edge[cur_idx], r_name[idx_dict[cur_idx][0]], r_name[idx_dict[cur_idx][1]])
 	if save: np.savetxt(vis_dir+'common_edge.edge', appearance_edges, fmt='%i')
-	return appearance_edges
+	return flat_app_edge
 
 # common triangles
 def nC3_dict(r):
@@ -97,16 +97,25 @@ if __name__ == '__main__':
 	with open('config.yaml') as info:
 		info_dict = yaml.load(info)
 	vis_dir = '/home/sikun/Downloads/BrainNetViewer/vis/'
-	task = sys.argv[1]
-	if task == 'resting':
-		r_name = info_dict['data']['aal']
-		omega = load_omega(task,mid='_',lam=0.1)
-	else:
-		r_name = info_dict['data']['hcp']
-		omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-	r = len(r_name)
-	idx_dict = build_dict(r)
+	# task = sys.argv[1]
+	tasks = ['EMOTION','GAMBLING','LANGUAGE','MOTOR','RELATIONAL','SOCIAL','WM']
+	inall = []
+	for task in tasks:
+		if task == 'resting':
+			r_name = info_dict['data']['aal']
+			omega = load_omega(task,mid='_',lam=0.1)
+		else:
+			r_name = info_dict['data']['hcp']
+			omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
+		r = len(r_name)
+		idx_dict = build_dict(r)
 
-	common_nodes(omega, r, idx_dict)
-	common_edges(omega, r, idx_dict, vis_dir)
-	common_triangles(omega, r, idx_dict)
+		# appearance_nodes = common_nodes(omega, r_name, idx_dict)
+		appearance_edges = common_edges(omega, r_name, idx_dict, vis_dir)
+		# appearance_triangles = common_triangles(omega, r_name, idx_dict)
+		
+		in_2core = np.asarray(appearance_edges)
+		in_2core[in_2core!=0] = 1
+		inall.append(in_2core)
+	inall = np.sum(np.stack(inall),axis=0)
+	print(np.where(inall==7)[0].shape)
