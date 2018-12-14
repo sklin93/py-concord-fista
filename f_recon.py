@@ -9,19 +9,10 @@ from common_nonzero import load_omega, nz_share
 from common_2core import common_edges
 from vis import build_dict
 
-task = sys.argv[1]
-fdir = 'fs_results/'
-vec_s, vec_f = data_prep(task)
-n, p = vec_s.shape
-# load omega
-if task == 'resting':
-	omega = load_omega(task,mid='_',lam=0.1)
-else:
-	omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-
 def p_val(result):
 	pred_f = vec_s@result.T
 	print(pred_f.shape)
+	n = pred_f.shape[0]
 	pval_tot = 0
 	for k in range(n):
 		cor, pval = pearsonr(pred_f[k],vec_f[k])
@@ -29,52 +20,16 @@ def p_val(result):
 		pval_tot += pval
 	return pval_tot/n
 
-check_only = True
-use_rnd = False
-''' 
-# direct regression (OOM)
-
-X = Variable((p,p))
-
-def loss_fn(X, vec_s, vec_f):
-    return pnorm(matmul(vec_s, X.T) - vec_f, p=2)**2
-
-def regularizer(X):
-    return pnorm(X, p=2)**2
-def objective_fn(X, vec_s, vec_f, lambd):
-    return loss_fn(X, vec_s, vec_f) + lambd * regularizer(X)
-
-
-def regularizer2(X, lamMat):
-	return sum(multiply(lamMat,power(X,2)))
-def objective_fn2(X, vec_s, vec_f, lamMat):
-	return loss_fn(X, vec_s, vec_f) + regularizer2(X,lamMat)
-
-lambd = 0.01
-hard_constraint = False
-if hard_constraint:
-	constraints = [X[omega==0]==0]
-	prob = Problem(Minimize(objective_fn(X,vec_s,vec_f,lambd)),constraints)
-else:
-	lamMat = np.ones((p,p))*lambd
-	lamMat[omega==0] *= 10000
-	prob = Problem(Minimize(objective_fn2(X,vec_s,vec_f,lamMat)))
-
-print('Problem set.')
-prob.solve()
-'''
-
-# do regression row by row
-
 def loss_fn(w, s, f):
 	return norm(matmul(s, w) - f)**2
+
 def objective_fn(w, s, f, lam):
 	return loss_fn(w, s, f) + lam * norm(w)**2
 
 def objective_fn2(w, s, f, lam, vec):
 	return loss_fn(w, s, f) + lam * norm(vec*w)**2
 
-if check_only:
+def result_check(fdir, task, omega):
 	result = np.load(fdir+'weights_'+task+'.npy')
 	print(np.count_nonzero(result))
 	print(p_val(result))
@@ -100,9 +55,17 @@ if check_only:
 			print(sorted_idx[0][i], sorted_idx[1][i], result[sorted_idx[0][i], sorted_idx[1][i]])
 			print(r_name[idx_dict[sorted_idx[1][i]][0]], r_name[idx_dict[sorted_idx[1][i]][1]])
 			ctr += 1
-else:
+
+def regression(s, vec_f, omega, fdir, use_rnd=False, use_train=False,
+				hard_constraint=True, check_constraint=False):
+	if use_train:
+		train_num = int(s.shape[0]*0.8)
+		s = s[:train_num,:]
+		vec_f = vec_f[:train_num,:]	
+	n, p = s.shape
 	if use_rnd:
 		# compare with random positioned nz entries, with a same level sparsity
+		#TODO: set diag to nz and others rnd
 		rnd_w = np.zeros(omega.shape)
 		idx = np.random.choice(p*p,np.count_nonzero(omega),replace=False)
 		ctr = 0
@@ -114,16 +77,12 @@ else:
 		print(np.count_nonzero(rnd_w))
 		omega = rnd_w
 	
-	s = vec_s
 	# lambd_values = np.logspace(-1, 1, 10)
 	lambd_values = [0.33]
-	hard_constraint = True
-	# pval_values = []
 	_min = 1
 	for lambd in lambd_values:
 		result = []
 		for f_idx in range(p):
-
 			w = Variable(p)
 			f = vec_f[:,f_idx]
 			if hard_constraint:
@@ -149,11 +108,25 @@ else:
 			np.save(fdir+'weights_'+task+'.npy', result)
 			_min = cur_pval
 		print(lambd, np.count_nonzero(result), cur_pval)
-		# pval_values.append(cur_pval)
-		'''
-		# check if results all fall in nonzero positions (ratio should be 1)
-		tmp = result.copy()
-		tmp[tmp!=0]=1
-		ratio, _ = nz_share(tmp,omega)
-		print(ratio)
-		'''
+		if check_constraint:
+			# check if results all fall in nonzero positions (ratio should be 1)
+			tmp = result.copy()
+			tmp[tmp!=0]=1
+			ratio, _ = nz_share(tmp,omega)
+			print(ratio)
+
+if __name__ == '__main__':
+	task = sys.argv[1]
+	fdir = 'fs_results/'
+	# load data
+	vec_s, vec_f = data_prep(task)
+	# load omega
+	if task == 'resting':
+		omega = load_omega(task,mid='_',lam=0.1)
+	else:
+		omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
+
+	use_train = True
+
+	regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=True)
+	# result_check(fdir, task, omega)
