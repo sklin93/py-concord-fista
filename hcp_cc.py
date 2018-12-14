@@ -67,8 +67,12 @@ def f_only(task, lam):
 	print(np.count_nonzero(invcov.diagonal()))
 	print(fi.loss())
 
-def s_f(task, lam, check_loss_only=False):
+def s_f(task, lam, check_loss_only=False, split=False):
 	vec_s, vec_f = data_prep(task)
+	if split:
+		train_num = int(vec_s.shape[0]*0.8)
+		vec_s = vec_s[:train_num,:]
+		vec_f = vec_f[:train_num,:]
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
 	if check_loss_only:
@@ -79,7 +83,10 @@ def s_f(task, lam, check_loss_only=False):
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
-	np.save(fdir+str(lam)+'_1stage_er2_'+task+'.npy',omega)
+	if split:
+		np.save(fdir+str(lam)+'_er_train_'+task+'.npy',omega)
+	else:
+		np.save(fdir+str(lam)+'_1stage_er2_'+task+'.npy',omega)
 	print(np.count_nonzero(omega))
 	d = omega.shape[0]
 	print(np.count_nonzero(omega[:,:d]))
@@ -98,7 +105,6 @@ def s_f_direct(task,lam):
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
-	# import ipdb; ipdb.set_trace()
 	np.save(fdir+'direct_'+str(lam)+'.npy',omega)
 
 def check_loss(D,X):
@@ -175,6 +181,6 @@ def reconstruct_err(task, filename, rnd_compare=False):
 if __name__ == '__main__':
 	task = sys.argv[1]
 	# f_only(task,lam=0.1)
-	# s_f(task,lam=0.0014, check_loss_only=False) # use 0.0012 for normalization 2
+	s_f(task,lam=0.0014, check_loss_only=False, split=True) # use 0.0012 for normalization 2
 	# s_f_direct(task,lam=0.08)
-	reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
+	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
