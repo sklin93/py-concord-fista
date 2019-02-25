@@ -7,7 +7,8 @@ WORK_DIR="$1"
 # phase encoding options
 declare -a PHASE_ENCODING=("LR" "RL")
 
-
+# make shell scripts runnable under current directory
+chmod +x *.sh
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
@@ -29,7 +30,6 @@ fi
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # For each subject, download its task fmri file
-
 # Need to install awscli and configure with access key pairs
 
 fMRI_TASK="LANGUAGE"
@@ -106,26 +106,57 @@ done < $SUBJECT_LIST
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Smoothing (optional)
 
+# Check the following paper that suggests a 2~3-voxel FWHM (6mm) spatial smoothing:
+# "Effect of Spatial Smoothing on Task fMRI ICA and Functional Connectivity"
 
+# FSL spatial smoothing command:
+# fslmaths data -kernel gauss sigma -fmean smoothed.nii
+# sigma = FWHM / 2.3548, and we use FWHM = 6mm
 
+SMOOTH_TRIGGER="true"
+sigma=2.548
+
+if $SMOOTH_TRIGGER; then
+    while read -r subject;
+    do
+        echo "Step 3 (smoothing, optional): Subject $subject ......"
+        for phase in "${PHASE_ENCODING[@]}"
+        do
+            tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+            tfMRI_125mm_smoothed==$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+            if [ ! -f $tfMRI_125mm_smoothed ]; then
+                echo "Spatial smoothing started, input: $tfMRI_125mm"
+                fslmaths $tfMRI_125mm -kernel gauss $sigma -fmean $tfMRI_125mm_smoothed
+                echo "Spatial smoothing finished, output: $tfMRI_125mm_smoothed"
+            else
+                echo "Existing spatial smoothed tfMRI found: $tfMRI_125mm_smoothed"
+            fi
+        done
+    done < $SUBJECT_LIST
+else
+    echo "Skipping spatial smoothing ......"
+fi
 
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Create masks from atlas definition nii image
+# Create binary masks from atlas definition nii image
 
-ATLAS_DIR="Lausanne2008"
-Atlas_VER="ROIv_scale33"
+ATLAS_NAME="Lausanne2008"
+ATLAS_VERSION="ROIv_scale33"
+MASK_LIST="mask_list.txt"
+MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 
-
-
-
-
-
+# check if the mask already exits
+if [ ! -f $MASK_DIR/$MASK_LIST ]; then
+    ./create_roi_mask.sh $WORK_DIR $ATLAS_NAME $ATLAS_VERSION $MASK_LIST
+else
+    echo "Existing masks found: $MASK_DIR/$MASK_LIST"
+fi
 
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# extract timeseries according to given atlas
+# Extract timeseries according to given atlas
 
 # REFERENCE_TEMPLATE="final_template_1.25mm/MNI/RAS_MNI_1.25mm.nii.gz"
