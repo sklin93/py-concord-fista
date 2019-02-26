@@ -186,28 +186,27 @@ fi
 while read -r subject;
 do
     echo "Step 5 (extracting timeseries): Subject $subject ......"
-    timestamp # print timestamp
     for phase in "${PHASE_ENCODING[@]}"
     do
         if $SMOOTH_TRIGGER; then
             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}_timeseries
+            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
         else
             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}_timeseries
+            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
         fi
-	echo $tfMRI_final
-	echo $tfmri_ts_dir
         if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
             echo "Extraction started, input: $tfmri_final"
             mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
-            parallel --jobs 6 "3dmaskdump -noijk -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
-            echo "Extraction finished, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+            start_time="$(date -u +%s)"
+            parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
+            end_time="$(date -u +%s)"
+            elapsed="$(bc <<<"$end_time-$start_time")"
+            echo "Extraction finished in ${elapsed} seconds, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
         else
             echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
         fi
     done
-    timestamp # print timestamp
 done < $SUBJECT_LIST
 
 
