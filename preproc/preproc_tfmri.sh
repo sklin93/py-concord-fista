@@ -170,30 +170,30 @@ fi
 # Extracting Timecourses with 3dmaskdump, check:
 # https://www.andysbrainblog.com/andysbrainblog/2017/5/5/extracting-timecourses-with-3dmaskdump
 
-# MASK_PATH="$MASK_DIR/$"
+MASK_PATH="$MASK_DIR/$"
 
-# while read -r subject;
-# do
-#     echo "Step 5 (extracting timeseries): Subject $subject ......"
-#     for phase in "${PHASE_ENCODING[@]}"
-#     do
-#         if $SMOOTH_TRIGGER; then
-#             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-#             tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase_timeseries
-#         else
-#             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-#             tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase_timeseries
-#         fi
-#         if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
-#             echo "Extraction started, input: $tfmri_final"
-#             3dmaskdump -noijk -xyz -mask $MASK_IMAGE $tfMRI_final \
-#                 > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$ts_roi_file
-#             echo "Extraction finished, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
-#         else
-#             echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/"
-#         fi
-#     done
-# done < $SUBJECT_LIST
+while read -r subject;
+do
+    echo "Step 5 (extracting timeseries): Subject $subject ......"
+    for phase in "${PHASE_ENCODING[@]}"
+    do
+        if $SMOOTH_TRIGGER; then
+            tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+            tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase_timeseries
+        else
+            tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+            tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase_timeseries
+        fi
+        if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+            echo "Extraction started, input: $tfmri_final"
+            3dmaskdump -noijk -xyz -mask $MASK_IMAGE $tfMRI_final \
+                > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$ts_roi_file
+            echo "Extraction finished, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+        else
+            echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/"
+        fi
+    done
+done < $SUBJECT_LIST
 
 
 
