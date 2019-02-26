@@ -119,7 +119,7 @@ done < $SUBJECT_LIST
  # http://andysbrainblog.blogspot.com/2012/06/smoothing-in-afni.html
  # 3dBlurToFWHM -FWHM 6 -automask -prefix outputDataset -input inputDataset
 
-SMOOTH_TRIGGER="true"
+SMOOTH_TRIGGER="false"
 sigma=2.548
 
 if $SMOOTH_TRIGGER; then
@@ -167,7 +167,6 @@ ATLAS_FILE_NAME="$ATLAS_DIR/atlas/$ATLAS_NAME/$ATLAS_VERSION.nii.gz"
 Intensity_Max=`fslstats ${ATLAS_FILE_NAME} -R | cut -d " " -f 2 `
 ROI_NUM=${Intensity_Max%.*}
 ROI_INDEX_LIST=`seq 1 $ROI_NUM`
-MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 if [ -d "${MASK_DIR}" ]; then
     echo "    Atlas:$ATLAS_NAME/$ATLAS_VERSION.nii.gz contains ${ROI_NUM} ROI regions."
 fi
@@ -181,6 +180,8 @@ fi
 # Extracting Timecourses with 3dmaskdump, check:
 # https://www.andysbrainblog.com/andysbrainblog/2017/5/5/extracting-timecourses-with-3dmaskdump
 
+# Another option by using FSL command:
+# parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${ROI_INDEX_LIST[@]}"
 
 while read -r subject;
 do
@@ -190,24 +191,20 @@ do
     do
         if $SMOOTH_TRIGGER; then
             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_$phase_timeseries
+            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}_timeseries
         else
             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_$phase_timeseries
+            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}_timeseries
         fi
+	echo $tfMRI_final
+	echo $tfmri_ts_dir
         if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
             echo "Extraction started, input: $tfmri_final"
             mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
-            
-            parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${ROI_INDEX_LIST[@]}"
-
-            3dmaskdump -noijk -xyz -mask $MASK_IMAGE $tfMRI_final \
-                > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$ts_roi_file
-
-
+            parallel --jobs 6 "3dmaskdump -noijk -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
             echo "Extraction finished, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
         else
-            echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/"
+            echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
         fi
     done
     timestamp # print timestamp
