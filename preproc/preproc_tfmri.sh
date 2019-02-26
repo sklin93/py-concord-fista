@@ -111,7 +111,13 @@ done < $SUBJECT_LIST
 
 # FSL spatial smoothing command:
 # fslmaths data -kernel gauss sigma -fmean smoothed.nii
-# sigma = FWHM / 2.3548, and we use FWHM = 6mm
+# sigma = FWHM / 2.3548, and we use FWHM = 6mm or 4mm
+# Check conversion between sigma and FWHM:
+# https://brainder.org/2011/08/20/gaussian-kernels-convert-fwhm-to-sigma/
+
+ # Another option is to use AFNI 3dBlurToFWHM for mpatial smoothing: 
+ # http://andysbrainblog.blogspot.com/2012/06/smoothing-in-afni.html
+ # 3dBlurToFWHM -FWHM 6 -automask -prefix outputDataset -input inputDataset
 
 SMOOTH_TRIGGER="true"
 sigma=2.548
@@ -123,10 +129,10 @@ if $SMOOTH_TRIGGER; then
         for phase in "${PHASE_ENCODING[@]}"
         do
             tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            tfMRI_125mm_smoothed==$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+            tfMRI_125mm_smoothed=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
             if [ ! -f $tfMRI_125mm_smoothed ]; then
                 echo "Spatial smoothing started, input: $tfMRI_125mm"
-                fslmaths $tfMRI_125mm -kernel gauss $sigma -fmean $tfMRI_125mm_smoothed
+                fslmaths $tfMRI_125mm -kernel gauss 2.548 -fmean $tfMRI_125mm_smoothed
                 echo "Spatial smoothing finished, output: $tfMRI_125mm_smoothed"
             else
                 echo "Existing spatial smoothed tfMRI found: $tfMRI_125mm_smoothed"
@@ -149,6 +155,7 @@ MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 
 # check if the mask already exits
 if [ ! -f $MASK_DIR/$MASK_LIST ]; then
+    echo "Step 4 (creating ROI masks) ......"
     ./create_roi_mask.sh $WORK_DIR $ATLAS_NAME $ATLAS_VERSION $MASK_LIST
 else
     echo "Existing masks found: $MASK_DIR/$MASK_LIST"
@@ -157,6 +164,36 @@ fi
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Extract timeseries according to given atlas
-
+# Extract timeseries given atlas masks
 # REFERENCE_TEMPLATE="final_template_1.25mm/MNI/RAS_MNI_1.25mm.nii.gz"
+
+# Extracting Timecourses with 3dmaskdump, check:
+# https://www.andysbrainblog.com/andysbrainblog/2017/5/5/extracting-timecourses-with-3dmaskdump
+
+MASK_PATH="$MASK_DIR/$"
+
+while read -r subject;
+do
+    echo "Step 5 (extracting timeseries): Subject $subject ......"
+    for phase in "${PHASE_ENCODING[@]}"
+    do
+        if $SMOOTH_TRIGGER; then
+            tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+            tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase_timeseries
+        else
+            tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+            tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase_timeseries
+        fi
+        if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+            echo "Extraction started, input: $tfmri_final"
+            3dmaskdump -noijk -xyz -mask $MASK_IMAGE $tfMRI_final \
+                > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$ts_roi_file
+            echo "Extraction finished, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+        else
+            echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/"
+        fi
+    done
+done < $SUBJECT_LIST
+
+
+
