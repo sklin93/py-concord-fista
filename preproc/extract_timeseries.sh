@@ -6,30 +6,28 @@
 # MASK_LIST="mask_list.txt"
 
 WORK_DIR="$1"
-ATLAS_NAME="$2"
-ATLAS_VERSION="$3"
-MASK_LIST="$4"
+TS_DIR="$2"
+ATLAS_NAME="$3"
+ATLAS_VERSION="$4"
+TFMRI_FINAL="$5"
 
-MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
-
-Timeseries_Dir="$TS_DIR/$ATLAS_NAME/$ATLAS_VERSION"
 
 
 # get the number of ROIs in the selected atlas
-Intensity_Max=`fslstats ${ATLAS_FILE} -R | cut -d " " -f 2 `
-ROI_Num=${Intensity_Max%.*}
+ATLAS_DIR="$WORK_DIR/final_template_1.25mm/MNI"
+ATLAS_FILE_NAME="$ATLAS_DIR/atlas/$ATLAS_NAME/$ATLAS_VERSION.nii.gz"
+Intensity_Max=`fslstats ${ATLAS_FILE_NAME} -R | cut -d " " -f 2 `
+ROI_NUM=${Intensity_Max%.*}
+MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 if [ -d "${MASK_DIR}" ]; then
-    echo "    Atlas:${Atlas}/${Atlas_Ver}.nii.gz contains ${ROI_Num} ROI regions."
+    echo "    Atlas:$ATLAS_NAME/$ATLAS_VERSION.nii.gz contains ${ROI_NUM} ROI regions."
 fi
 
 
 
-
 # extract time courses for each ROI
-mkdir -p ${WD}/atlas_ts/${Atlas}/${Atlas_Ver}
-timestamp # print timestamp
 
-echo "    ====== START: extracting time-series from tfMRI (${WD}) ======"
+
 ## parallel for loop example:
 ## non-parallel: 
 ##	for i in 1 2 3 4 5; do someCommand data$i.fastq > output$i.txt & done
@@ -37,11 +35,11 @@ echo "    ====== START: extracting time-series from tfMRI (${WD}) ======"
 ##	parallel --jobs 16 someCommand data{}.fastq '>' output{}.fastq ::: {1..512}
 
 # - - - - - parallel version - - - - - - 
-index_list=`seq 1 $ROI_Num`
-parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${Timeseries_Dir}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${index_list[@]}"
+index_list=`seq 1 $ROI_NUM`
+parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${index_list[@]}"
 
 ## - - - - - non-parallel version - - - - - - 
-## for ((k=1;k<=${ROI_Num};k++))
+## for ((k=1;k<=${ROI_NUM};k++))
 ## do
 ## {
 ## 	echo "        ROI: ${k}"
@@ -58,6 +56,3 @@ tar zcvf ${fMRI_task}.tar.gz *.txt
 rm *.txt
 cd ${Current_Path}
 ## echo `pwd`
-
-timestamp # print timestamp
-echo "    ====== END: extracting time-series from tfMRI (${WD}) ======"

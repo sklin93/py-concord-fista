@@ -161,6 +161,17 @@ else
     echo "Existing masks found: $MASK_DIR/$MASK_LIST"
 fi
 
+# get the number of ROIs in the selected atlas
+ATLAS_DIR="$WORK_DIR/final_template_1.25mm/MNI"
+ATLAS_FILE_NAME="$ATLAS_DIR/atlas/$ATLAS_NAME/$ATLAS_VERSION.nii.gz"
+Intensity_Max=`fslstats ${ATLAS_FILE_NAME} -R | cut -d " " -f 2 `
+ROI_NUM=${Intensity_Max%.*}
+ROI_INDEX_LIST=`seq 1 $ROI_NUM`
+MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
+if [ -d "${MASK_DIR}" ]; then
+    echo "    Atlas:$ATLAS_NAME/$ATLAS_VERSION.nii.gz contains ${ROI_NUM} ROI regions."
+fi
+
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -170,29 +181,36 @@ fi
 # Extracting Timecourses with 3dmaskdump, check:
 # https://www.andysbrainblog.com/andysbrainblog/2017/5/5/extracting-timecourses-with-3dmaskdump
 
-MASK_PATH="$MASK_DIR/$"
 
 while read -r subject;
 do
     echo "Step 5 (extracting timeseries): Subject $subject ......"
+    timestamp # print timestamp
     for phase in "${PHASE_ENCODING[@]}"
     do
         if $SMOOTH_TRIGGER; then
             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase_timeseries
+            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_$phase_timeseries
         else
             tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase_timeseries
+            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_$phase_timeseries
         fi
         if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
             echo "Extraction started, input: $tfmri_final"
+            mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
+            
+            parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${ROI_INDEX_LIST[@]}"
+
             3dmaskdump -noijk -xyz -mask $MASK_IMAGE $tfMRI_final \
                 > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$ts_roi_file
+
+
             echo "Extraction finished, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
         else
             echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/"
         fi
     done
+    timestamp # print timestamp
 done < $SUBJECT_LIST
 
 
