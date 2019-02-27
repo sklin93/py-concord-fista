@@ -10,6 +10,13 @@ declare -a PHASE_ENCODING=("LR" "RL")
 # make shell scripts runnable under current directory
 chmod +x *.sh
 
+
+# enable FLAGS
+FLAG_DOWNLOAD="true"
+FLAG_UPSAMPING="false"
+FLAG_SMOOTHING="false"
+FLAG_TSEXTRACT="false"
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
 
@@ -65,12 +72,12 @@ do
         tfMRI_2mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz
         tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
         if [ ! -f $tfMRI_125mm ]; then
-            echo "Downsampling started, input: $tfMRI_2mm"
+            echo "Upsampling started, input: $tfMRI_2mm"
             3dresample -dxyz 1.25 1.25 1.25 -orient LPI \
                 -inset $tfMRI_2mm -prefix $tfMRI_125mm -overwrite
-            echo "Downsampling finished, output: $tfMRI_125mm"
+            echo "Upsampling finished, output: $tfMRI_125mm"
         else
-            echo "Existing downsampled tfMRI file found: $tfMRI_125mm"
+            echo "Existing upsampled tfMRI file found: $tfMRI_125mm"
         fi
     done
 done < $SUBJECT_LIST
