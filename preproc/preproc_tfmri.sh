@@ -13,7 +13,7 @@ chmod +x *.sh
 
 # enable FLAGS
 FLAG_DOWNLOAD="true"
-FLAG_UPSAMPING="false"
+FLAG_UPSAMPING="true"
 FLAG_SMOOTHING="false"
 FLAG_TSEXTRACT="false"
 
@@ -43,44 +43,51 @@ fMRI_TASK="LANGUAGE"
 fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
 SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
 
-while read -r subject;
-do
-    echo "Step 1: Subject $subject ......"
-    mkdir -p $WORK_DIR/$subject/tfMRI
-    for phase in "${PHASE_ENCODING[@]}"
+if $FLAG_DOWNLOAD; then
+    while read -r subject;
     do
-        file_relative_path=MNINonLinear/Results/${fMRI_FILE_NAME}_$phase/${fMRI_FILE_NAME}_$phase.nii.gz
-        if [ ! -f $WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
-            aws s3 cp s3://hcp-openaccess/HCP/$subject/${file_relative_path} \
-                $WORK_DIR/$subject/tfMRI --region us-west-2
-        else
-            echo "Existing tfMRI file found: ${fMRI_FILE_NAME}_$phase.nii.gz"
-        fi
-    done
-done < $SUBJECT_LIST
-
+        echo "Step 1: Subject $subject ......"
+        mkdir -p $WORK_DIR/$subject/tfMRI
+        for phase in "${PHASE_ENCODING[@]}"
+        do
+            file_relative_path=MNINonLinear/Results/${fMRI_FILE_NAME}_$phase/${fMRI_FILE_NAME}_$phase.nii.gz
+            if [ ! -f $WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
+                aws s3 cp s3://hcp-openaccess/HCP/$subject/${file_relative_path} \
+                    $WORK_DIR/$subject/tfMRI --region us-west-2
+            else
+                echo "Existing tfMRI file found: ${fMRI_FILE_NAME}_$phase.nii.gz"
+            fi
+        done
+    done < $SUBJECT_LIST
+else
+    echo "Downloading is disabled. Check settings in script."
+fi
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # AFNI 3dresample, resample 2mm fMRI to 1.25mm
 
-while read -r subject;
-do
-    echo "Step 2: Subject $subject ......"
-    for phase in "${PHASE_ENCODING[@]}"
+if $FLAG_UPSAMPING; then
+    while read -r subject;
     do
-        tfMRI_2mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz
-        tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-        if [ ! -f $tfMRI_125mm ]; then
-            echo "Upsampling started, input: $tfMRI_2mm"
-            3dresample -dxyz 1.25 1.25 1.25 -orient LPI \
-                -inset $tfMRI_2mm -prefix $tfMRI_125mm -overwrite
-            echo "Upsampling finished, output: $tfMRI_125mm"
-        else
-            echo "Existing upsampled tfMRI file found: $tfMRI_125mm"
-        fi
-    done
-done < $SUBJECT_LIST
+        echo "Step 2: Subject $subject ......"
+        for phase in "${PHASE_ENCODING[@]}"
+        do
+            tfMRI_2mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz
+            tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+            if [ ! -f $tfMRI_125mm ]; then
+                echo "Upsampling started, input: $tfMRI_2mm"
+                3dresample -dxyz 1.25 1.25 1.25 -orient LPI \
+                    -inset $tfMRI_2mm -prefix $tfMRI_125mm -overwrite
+                echo "Upsampling finished, output: $tfMRI_125mm"
+            else
+                echo "Existing upsampled tfMRI file found: $tfMRI_125mm"
+            fi
+        done
+    done < $SUBJECT_LIST
+else
+    echo "Upsampling is disabled. Check settings in script."
+fi
 
 # Original NIfTI image:
 # dimension:        [4 91 109 91 316 1 1 1]
@@ -126,10 +133,9 @@ done < $SUBJECT_LIST
  # http://andysbrainblog.blogspot.com/2012/06/smoothing-in-afni.html
  # 3dBlurToFWHM -FWHM 6 -automask -prefix outputDataset -input inputDataset
 
-SMOOTH_TRIGGER="false"
 sigma=2.548
 
-if $SMOOTH_TRIGGER; then
+if $FLAG_SMOOTHING; then
     while read -r subject;
     do
         echo "Step 3 (smoothing, optional): Subject $subject ......"
@@ -147,7 +153,7 @@ if $SMOOTH_TRIGGER; then
         done
     done < $SUBJECT_LIST
 else
-    echo "Skipping spatial smoothing ......"
+    echo "Smoothing is disabled. Check settings in script."
 fi
 
 
@@ -190,31 +196,34 @@ fi
 # Another option by using FSL command:
 # parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${ROI_INDEX_LIST[@]}"
 
-while read -r subject;
-do
-    echo "Step 5 (extracting timeseries): Subject $subject ......"
-    for phase in "${PHASE_ENCODING[@]}"
+if $FLAG_TSEXTRACT; then
+    while read -r subject;
     do
-        if $SMOOTH_TRIGGER; then
-            tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
-        else
-            tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
-        fi
-        if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
-            echo "Extraction started, input: $tfmri_final"
-            mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
-            start_time="$(date -u +%s)"
-            parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
-            end_time="$(date -u +%s)"
-            elapsed="$(bc <<<"$end_time-$start_time")"
-            echo "Extraction finished in ${elapsed} seconds, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
-        else
-            echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
-        fi
-    done
-done < $SUBJECT_LIST
-
+        echo "Step 5 (extracting timeseries): Subject $subject ......"
+        for phase in "${PHASE_ENCODING[@]}"
+        do
+            if $SMOOTH_TRIGGER; then
+                tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+                tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
+            else
+                tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+                tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
+            fi
+            if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+                echo "Extraction started, input: $tfmri_final"
+                mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
+                start_time="$(date -u +%s)"
+                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
+                end_time="$(date -u +%s)"
+                elapsed="$(bc <<<"$end_time-$start_time")"
+                echo "Extraction finished in ${elapsed} seconds, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+            else
+                echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+            fi
+        done
+    done < $SUBJECT_LIST
+else
+    echo "Timeseries extraction is disabled. Check settings in script."
+fi
 
 

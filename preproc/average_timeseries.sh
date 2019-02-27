@@ -25,30 +25,11 @@ fi
 
 
 
-# extract time courses for each ROI
-
-
-## parallel for loop example:
-## non-parallel: 
-##	for i in 1 2 3 4 5; do someCommand data$i.fastq > output$i.txt & done
-## parallel:
-##	parallel --jobs 16 someCommand data{}.fastq '>' output{}.fastq ::: {1..512}
-
-# - - - - - parallel version - - - - - - 
-index_list=`seq 1 $ROI_NUM`
-parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${index_list[@]}"
-
-## - - - - - non-parallel version - - - - - - 
-## for ((k=1;k<=${ROI_NUM};k++))
-## do
-## {
-## 	echo "        ROI: ${k}"
-## 	# fslstats ${Final_fMRI} -k ${MASK_DIR}/${k}.nii.gz -m > ${Timeseries_Dir}/${k}_fslstats.txt
-## 	fslmeants -i ${Final_fMRI} -o ${Timeseries_Dir}/${k}.txt -m ${MASK_DIR}/${k}.nii.gz
-## }
-## done
 
 # - - - - - - merge single ROI ts file into a unified file - - - - - -
+
+
+
 file_string=`cat ${MASK_DIR}/${MASK_LIST}`
 cd ${Timeseries_Dir}
 paste ${file_string} > ${fMRI_task}.ts.csv
