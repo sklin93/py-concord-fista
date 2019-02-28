@@ -12,7 +12,6 @@ ATLAS_VERSION="$4"
 TFMRI_FINAL="$5"
 
 
-
 # get the number of ROIs in the selected atlas
 ATLAS_DIR="$WORK_DIR/final_template_1.25mm/MNI"
 ATLAS_FILE_NAME="$ATLAS_DIR/atlas/$ATLAS_NAME/$ATLAS_VERSION.nii.gz"
@@ -22,6 +21,16 @@ MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 if [ -d "${MASK_DIR}" ]; then
     echo "    Atlas:$ATLAS_NAME/$ATLAS_VERSION.nii.gz contains ${ROI_NUM} ROI regions."
 fi
+
+
+# remove the all-zero row 
+
+
+
+
+# calculate the average across ROI voxels
+
+
 
 
 

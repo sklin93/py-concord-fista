@@ -15,7 +15,8 @@ chmod +x *.sh
 FLAG_DOWNLOAD="true"
 FLAG_UPSAMPING="true"
 FLAG_SMOOTHING="false"
-FLAG_TSEXTRACT="false"
+FLAG_TSEXTRACT="true"
+FLAG_CORRELATION="false"
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
@@ -209,21 +210,27 @@ if $FLAG_TSEXTRACT; then
                 tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
                 tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
             fi
+            # Extract timeseries from tfMRI image for each ROI
             if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
                 echo "Extraction started, input: $tfmri_final"
                 mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
-                start_time="$(date -u +%s)"
-                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
-                end_time="$(date -u +%s)"
-                elapsed="$(bc <<<"$end_time-$start_time")"
-                echo "Extraction finished in ${elapsed} seconds, output directory: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+                time_start="$(date -u +%s)"
+                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
+                    > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
+                time_end="$(date -u +%s)"
+                time_elapsed="$(bc <<<"$time_end-$time_start")"
+                echo "Extraction finished in ${time_elapsed} seconds, output: \
+                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
             else
                 echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
             fi
+            # Calculate the averaged timeseries for each ROI
+            tfmri_ts_mean=$tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/timeseries_mean.csv
+            if [! -f $tfmri_ts_mean]
+                python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION timeseries_mean.csv
+            # Compute the correlation
         done
     done < $SUBJECT_LIST
 else
     echo "Timeseries extraction is disabled. Check settings in script."
 fi
-
-
