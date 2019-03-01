@@ -216,7 +216,7 @@ if $FLAG_TSEXTRACT; then
         for phase in "${PHASE_ENCODING[@]}"
         do
             # Set up input tfMRI image dir and output dir
-            if $SMOOTH_TRIGGER; then
+            if $FLAG_SMOOTHING; then
                 tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
                 tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
             else
