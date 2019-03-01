@@ -240,7 +240,10 @@ if $FLAG_TSEXTRACT; then
             # Calculate the averaged timeseries for each ROI
             tfmri_ts_mean="timeseries_mean.ts"
             if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean ]; then
+                echo "Averaging timeseries started."
                 python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
+                echo "Averaging timeseries finished, output: \
+                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean"
             else
                 echo "Existing averaged timeseries found: \
                     $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean"
@@ -248,8 +251,11 @@ if $FLAG_TSEXTRACT; then
             # Compute the correlation
             tfmri_corrmat="corrmat.fc"
             if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat ]; then
+                echo "Connecitivity matrix construction started."
                 python ./create_corrmat.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
                     $tfmri_ts_mean $tfmri_corrmat
+                echo "Connecitivity matrix construction finished, output: \
+                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat"
             else
                 echo "Existing correlation matrix found: \
                     $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat"
