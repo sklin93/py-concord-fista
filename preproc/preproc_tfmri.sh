@@ -239,7 +239,7 @@ if $FLAG_TSEXTRACT; then
             fi
             # Calculate the averaged timeseries for each ROI
             tfmri_ts_mean="timeseries_mean.ts"
-            if [! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean]; then
+            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean ]; then
                 python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
             else
                 echo "Existing averaged timeseries found: \
@@ -247,7 +247,7 @@ if $FLAG_TSEXTRACT; then
             fi
             # Compute the correlation
             tfmri_corrmat="corrmat.fc"
-            if [! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat]; then
+            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat ]; then
                 python ./create_corrmat.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
                     $tfmri_ts_mean $tfmri_corrmat
             else
