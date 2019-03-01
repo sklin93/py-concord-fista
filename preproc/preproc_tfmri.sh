@@ -16,7 +16,6 @@ FLAG_DOWNLOAD="true"
 FLAG_UPSAMPING="true"
 FLAG_SMOOTHING="false"
 FLAG_TSEXTRACT="true"
-FLAG_CORRELATION="false"
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
@@ -188,12 +187,11 @@ fi
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Extract timeseries given atlas masks
+# Extract timeseries given atlas masks and compute correlation matrix
 # REFERENCE_TEMPLATE="final_template_1.25mm/MNI/RAS_MNI_1.25mm.nii.gz"
 
 # Extracting Timecourses with 3dmaskdump, check:
 # https://www.andysbrainblog.com/andysbrainblog/2017/5/5/extracting-timecourses-with-3dmaskdump
-
 # Another option by using FSL command:
 # parallel --jobs 6 fslmeants -i ${Final_fMRI} -o ${TS_DIR}/{}.txt -m ${MASK_DIR}/{}.nii.gz ::: "${ROI_INDEX_LIST[@]}"
 
@@ -228,7 +226,19 @@ if $FLAG_TSEXTRACT; then
             tfmri_ts_mean="timeseries_mean.ts"
             if [! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean]
                 python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
+            else
+                echo "Existing averaged timeseries found: \
+                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean"
+            fi
             # Compute the correlation
+            tfmri_corrmat="corrmat.fc"
+            if [! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat]
+                python ./create_corrmat.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
+                    $tfmri_ts_mean $tfmri_corrmat
+            else
+                echo "Existing correlation matrix found: \
+                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat"
+            fi  
         done
     done < $SUBJECT_LIST
 else

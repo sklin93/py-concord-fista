@@ -1,5 +1,5 @@
 import numpy as np
-import sys, glob, os
+import sys, os
 
 # For each ROI, returns a row of voxelwise averaged timeseries.
 # All zero reads will be removed.
