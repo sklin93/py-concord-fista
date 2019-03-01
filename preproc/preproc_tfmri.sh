@@ -1,3 +1,8 @@
+# Usage exapmles:
+# ./preproc_tfmri.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33
+# ./preproc_tfmri.sh /work/code/fs125 LANGUAGE ROIv_scale33
+
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ####
 # Preparing
 
@@ -16,6 +21,8 @@ FLAG_DOWNLOAD="true"
 FLAG_UPSAMPING="true"
 FLAG_SMOOTHING="false"
 FLAG_TSEXTRACT="true"
+
+time_start_all_steps="$(date -u +%s)"
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
@@ -39,7 +46,7 @@ fi
 # For each subject, download its task fmri file
 # Need to install awscli and configure with access key pairs
 
-fMRI_TASK="LANGUAGE"
+fMRI_TASK="$2" # fMRI_TASK="LANGUAGE"
 fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
 SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
 
@@ -77,9 +84,12 @@ if $FLAG_UPSAMPING; then
             tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
             if [ ! -f $tfMRI_125mm ]; then
                 echo "Upsampling started, input: $tfMRI_2mm"
+                time_start="$(date -u +%s)"
                 3dresample -dxyz 1.25 1.25 1.25 -orient LPI \
                     -inset $tfMRI_2mm -prefix $tfMRI_125mm -overwrite
-                echo "Upsampling finished, output: $tfMRI_125mm"
+                time_end="$(date -u +%s)"
+                time_elapsed="$(bc <<<"$time_end-$time_start")"
+                echo "Upsampling finished in ${time_elapsed} seconds, output: $tfMRI_125mm"
             else
                 echo "Existing upsampled tfMRI file found: $tfMRI_125mm"
             fi
@@ -145,8 +155,12 @@ if $FLAG_SMOOTHING; then
             tfMRI_125mm_smoothed=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
             if [ ! -f $tfMRI_125mm_smoothed ]; then
                 echo "Spatial smoothing started, input: $tfMRI_125mm"
+                time_start="$(date -u +%s)"
                 fslmaths $tfMRI_125mm -kernel gauss 2.548 -fmean $tfMRI_125mm_smoothed
-                echo "Spatial smoothing finished, output: $tfMRI_125mm_smoothed"
+                time_end="$(date -u +%s)"
+                time_elapsed="$(bc <<<"$time_end-$time_start")"
+                echo "Spatial smoothing finished in ${time_elapsed} seconds, \
+                    output: $tfMRI_125mm_smoothed"
             else
                 echo "Existing spatial smoothed tfMRI found: $tfMRI_125mm_smoothed"
             fi
@@ -162,7 +176,7 @@ fi
 # Create binary masks from atlas definition nii image
 
 ATLAS_NAME="Lausanne2008"
-ATLAS_VERSION="ROIv_scale33"
+ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
 MASK_LIST="mask_list.txt"
 MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 
@@ -201,6 +215,7 @@ if $FLAG_TSEXTRACT; then
         echo "Step 5 (extracting timeseries): Subject $subject ......"
         for phase in "${PHASE_ENCODING[@]}"
         do
+            # Set up input tfMRI image dir and output dir
             if $SMOOTH_TRIGGER; then
                 tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
                 tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
@@ -244,3 +259,8 @@ if $FLAG_TSEXTRACT; then
 else
     echo "Timeseries extraction is disabled. Check settings in script."
 fi
+
+
+time_end_all_steps="$(date -u +%s)"
+time_elapsed_all_steps="$(bc <<<"$time_end_all_steps-$time_start_all_steps")"
+echo "All steps finished in ${time_elapsed_all_steps} seconds."
