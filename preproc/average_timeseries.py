@@ -1,31 +1,27 @@
 import numpy as np
-import sys, glob
+import sys, glob, os
 
+# For each ROI, returns a row of voxelwise averaged timeseries.
+# All zero reads will be removed.
 
-# for each ROI, returns a row of voxelwise averaged timeseries
-def average_ts(ts_clean):
-    return ts_mean
-
-# for each ROI, returns a row of voxelwise cleaned timeseries
-# all zero reads will be removed
-def remove_zeros(ts_raw):
-    return ts_clean
-
+# Voxel-level timeseries of ROI "i" are stored as "i.txt" under the directory "dir_ts".
+# There should not be any other ".txt" files under the same directory "dir_ts".
 
 if __name__ == '__main__':
-    dir_ts      = sys.argv[1]
+    dir_ts      = sys.argv[1]  
     output_file = sys.argv[2]
 
+    # load the first timeseries file to extract dimension information
+    ts_raw      = np.loadtxt(open(dir_ts+'/1.txt', "rb"), delimiter=" ")
+    ts_list     = os.listdir(dir_ts)
+    ts_list     = [i for i in ts_list if i.endswith('.txt')]
+    num_frame   = ts_raw.shape[1] - 6 # remove coordinate prefix
+    num_roi     = len(ts_list)
 
-    num_roi
-    num_frame
+    ts_mean = np.empty([num_roi, num_frame])
+    for i in range(num_roi):
+        ts_raw     = np.loadtxt(open(dir_ts+'/'+str(i+1)+'.txt', "rb"), delimiter=" ")
+        nzn_voxel  = np.nonzero(np.sum(ts_raw[:,6:], axis=1))
+        ts_mean[i] = np.mean(ts_raw[nzn_voxel[0],6:], axis=0) 
 
-    ts_mean = np.empty(num_roi, num_frame)
-
-    for file_path in glob.iglob(dir_ts + '/*.txt'):
-        ts = np.loadtxt(open(file_path, "rb"), delimiter=",")
-        ts_mean = average_ts(remove_zeros(ts))
-
-    np.savetxt(output_file, ts_mean, delimiter=",") 
-
-
+    np.savetxt(dir_ts+'/'+output_file, ts_mean, delimiter=" ", fmt='%0.3f') 

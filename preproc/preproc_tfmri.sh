@@ -225,9 +225,9 @@ if $FLAG_TSEXTRACT; then
                 echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
             fi
             # Calculate the averaged timeseries for each ROI
-            tfmri_ts_mean=$tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/timeseries_mean.csv
-            if [! -f $tfmri_ts_mean]
-                python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION timeseries_mean.csv
+            tfmri_ts_mean="timeseries_mean.ts"
+            if [! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean]
+                python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
             # Compute the correlation
         done
     done < $SUBJECT_LIST
