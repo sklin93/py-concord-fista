@@ -8,6 +8,8 @@
 
 # working directory where you save your metadata and final results
 WORK_DIR="$1"
+fMRI_TASK="$2" # fMRI_TASK="LANGUAGE"
+ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
 
 # phase encoding options
 declare -a PHASE_ENCODING=("LR" "RL")
@@ -46,7 +48,6 @@ fi
 # For each subject, download its task fmri file
 # Need to install awscli and configure with access key pairs
 
-fMRI_TASK="$2" # fMRI_TASK="LANGUAGE"
 fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
 FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
 LOG_LIST=$WORK_DIR/"processed_subject_list.log"
@@ -77,7 +78,7 @@ if $FLAG_DOWNLOAD; then
         echo "$(date +%F)" >> $LOG_LIST
         if $download_success; then 
             echo $subject >> $SUBJECT_LIST
-            echo $subject >> $LOG_LIST
+            echo "$subject $fMRI_TASK $ATLAS_VERSION">> $LOG_LIST
         fi
         echo $'\n'  >> $LOG_LIST
     done < $FULL_SUBJECT_LIST
@@ -191,7 +192,6 @@ fi
 # Create binary masks from atlas definition nii image
 
 ATLAS_NAME="Lausanne2008"
-ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
 MASK_LIST="mask_list.txt"
 MASK_DIR="$WORK_DIR/atlas_mask/$ATLAS_NAME/$ATLAS_VERSION"
 
