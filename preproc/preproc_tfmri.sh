@@ -74,10 +74,10 @@ if $FLAG_DOWNLOAD; then
             fi
         done
         # build a list for successfully downloaded images. Some image files do not exist on AWS.
-        echo "$(date -u +%s)" >> $LOG_LIST
+        echo "$(date +%F)" >> $LOG_LIST
         if $download_success; then 
-            echo $subject_id >> $SUBJECT_LIST
-            echo $subject_id >> $LOG_LIST
+            echo $subject >> $SUBJECT_LIST
+            echo $subject >> $LOG_LIST
         fi
         echo $'\n'  >> $LOG_LIST
     done < $FULL_SUBJECT_LIST
