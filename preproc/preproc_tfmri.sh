@@ -274,7 +274,12 @@ if $FLAG_TSEXTRACT; then
             else
                 echo "Existing correlation matrix found: \
                     $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat"
-            fi  
+            fi
+            # Archive timeseries
+            current_dir="$PWD"
+            cd $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/
+            tar zcvf extracted_ts.tar.gz *.txt && rm ./*.txt
+            cd $current_dir
         done
     done < $SUBJECT_LIST
 else
