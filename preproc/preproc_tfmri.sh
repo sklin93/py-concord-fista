@@ -53,7 +53,7 @@ LOG_LIST=$WORK_DIR/"processed_subject_list.log"
 SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
 
 if $FLAG_DOWNLOAD; then
-    if [ -f $SUBJECT_FILE ]; then rm $SUBJECT_FILE; fi 
+    if [ -f $SUBJECT_LIST ]; then rm $SUBJECT_LIST; fi 
     while read -r subject;
     do
         echo "Step 1: Subject $subject ......"
@@ -76,10 +76,10 @@ if $FLAG_DOWNLOAD; then
         # build a list for successfully downloaded images. Some image files do not exist on AWS.
         echo "$(date -u +%s)" >> $LOG_LIST
         if $download_success; then 
-            echo $subject_id >> $SUBJECT_FILE
+            echo $subject_id >> $SUBJECT_LIST
             echo $subject_id >> $LOG_LIST
         fi
-        echo "\n\n\n"  >> $LOG_LIST
+        echo $'\n'  >> $LOG_LIST
     done < $FULL_SUBJECT_LIST
 else
     echo "Downloading is disabled. Check settings in script."
