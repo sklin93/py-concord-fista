@@ -48,13 +48,17 @@ fi
 
 fMRI_TASK="$2" # fMRI_TASK="LANGUAGE"
 fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
-SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
+FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
+LOG_LIST=$WORK_DIR/"processed_subject_list.log"
+SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
 
 if $FLAG_DOWNLOAD; then
+    if [ -f $SUBJECT_FILE ]; then rm $SUBJECT_FILE; fi 
     while read -r subject;
     do
         echo "Step 1: Subject $subject ......"
         mkdir -p $WORK_DIR/$subject/tfMRI
+        download_success="true"
         for phase in "${PHASE_ENCODING[@]}"
         do
             file_relative_path=MNINonLinear/Results/${fMRI_FILE_NAME}_$phase/${fMRI_FILE_NAME}_$phase.nii.gz
@@ -64,8 +68,19 @@ if $FLAG_DOWNLOAD; then
             else
                 echo "Existing tfMRI file found: ${fMRI_FILE_NAME}_$phase.nii.gz"
             fi
+            # check if images are correctly downlaoded
+            if [ ! -f $WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
+                download_success="false"; 
+            fi
         done
-    done < $SUBJECT_LIST
+        # build a list for successfully downloaded images. Some image files do not exist on AWS.
+        echo "$(date -u +%s)" >> $LOG_LIST
+        if $download_success; then 
+            echo $subject_id >> $SUBJECT_FILE
+            echo $subject_id >> $LOG_LIST
+        fi
+        echo "\n\n\n"  >> $LOG_LIST
+    done < $FULL_SUBJECT_LIST
 else
     echo "Downloading is disabled. Check settings in script."
 fi
