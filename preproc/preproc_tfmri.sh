@@ -1,6 +1,12 @@
 # Usage exapmles:
-# ./preproc_tfmri.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33
-# ./preproc_tfmri.sh /work/code/fs125 LANGUAGE ROIv_scale33
+# ./preproc_tfmri.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33 0 0 0 1
+# ./preproc_tfmri.sh /work/code/fs125 LANGUAGE ROIv_scale33 0 0 0 1
+
+# todo tasks: 
+# 1. parallel downloading and unsampling steps
+# 2. enable the resumable pipeline, maintain the downloaded subject list 
+# whenever there is no need to downlaod another time for preprocessing 
+# with a parcellation in a different scale or resolution.
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ####
@@ -17,12 +23,11 @@ declare -a PHASE_ENCODING=("LR" "RL")
 # make shell scripts runnable under current directory
 chmod +x *.sh
 
-
 # enable FLAGS
-FLAG_DOWNLOAD="true"
-FLAG_UPSAMPING="true"
-FLAG_SMOOTHING="false"
-FLAG_TSEXTRACT="true"
+FLAG_DOWNLOAD="$3"
+FLAG_UPSAMPING="$4"
+FLAG_SMOOTHING="$5"
+FLAG_TSEXTRACT="$6"
 
 time_start_all_steps="$(date -u +%s)"
 
