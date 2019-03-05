@@ -283,6 +283,7 @@ if $FLAG_TSEXTRACT; then
             # Archive timeseries
             current_dir="$PWD"
             cd $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/
+            if [ -f extracted_ts.tar.gz ]; then rm extracted_ts.tar.gz; fi
             tar zcvf extracted_ts.tar.gz *.txt && rm ./*.txt
             cd $current_dir
         done
