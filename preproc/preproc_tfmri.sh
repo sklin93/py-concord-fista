@@ -24,10 +24,10 @@ declare -a PHASE_ENCODING=("LR" "RL")
 chmod +x *.sh
 
 # enable FLAGS
-FLAG_DOWNLOAD="$3"
-FLAG_UPSAMPING="$4"
-FLAG_SMOOTHING="$5"
-FLAG_TSEXTRACT="$6"
+FLAG_DOWNLOAD="$4"
+FLAG_UPSAMPING="$5"
+FLAG_SMOOTHING="$6"
+FLAG_TSEXTRACT="$7"
 
 time_start_all_steps="$(date -u +%s)"
 
