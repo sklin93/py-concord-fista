@@ -177,10 +177,24 @@ def reconstruct_err(task, filename, rnd_compare=False):
 	# print('average error percentage',tot_err_perct/n)
 	# return err
 
+def sgcrf(task):
+	import sys
+	sys.path.insert(0,'/home/sikun/Documents/sgcrfpy/')
+	from sgcrf import SparseGaussianCRF
+
+	vec_s, vec_f = data_prep(task)
+	sgcrf = SparseGaussianCRF(learning_rate=0.1)
+	sgcrf.fit(vec_s, vec_f)
+	# loss = sgcrf.lnll
+	pred_f = sgcrf.predict(vec_s)
+	for k in range(vec_s.shape[0]):
+		print(pearsonr(pred_f[k],vec_f[k]))
 
 if __name__ == '__main__':
 	task = sys.argv[1]
+
 	# f_only(task,lam=0.1)
 	s_f(task,lam=0.0014, check_loss_only=False, split=True) # use 0.0012 for normalization 2
 	# s_f_direct(task,lam=0.08)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
+	# sgcrf(task)
