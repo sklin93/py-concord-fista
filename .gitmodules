@@ -1,0 +1,3 @@
+[submodule "mega-cggm"]
+	path = mega-cggm
+	url = https://github.com/calvinmccarter/mega-cggm.git
