@@ -1,0 +1,35 @@
+objval -10088.32512233 -10725.1558371 
+time 242.075239 557.842452 
+active_set_size 1322109 904286 
+active_theta 487728 69683 
+active_lambda 834381 834603 
+subgrad 15261.58788933 548.5602936616 
+l1norm 186499.3865119 233661.1566534 
+time_objective 7.989645 11.167981 
+time_clustering 2e-05 1.5e-05 
+time_theta_active 0.27167 0.312413 
+time_lambda_active 0.26874 19.76715 
+time_theta_cd 37.586257 33.272719 
+time_theta_cd_prep 20.81744 30.058473 
+time_theta_cd_cd 16.129432 2.462865 
+time_theta_cd_qr 0.634183 0.748111 
+time_theta_cd_inv 19.496329 29.863142 
+time_theta_cd_s 0.077962 0.027264 
+time_theta_cd_vp 1.226287 0.161736 
+time_lambda_cd 195.910211 251.24497 
+time_lambda_cd_prep 5.652974 20.142292 
+time_lambda_cd_prep_z 4.999324 19.24661 
+time_lambda_cd_prep_q 0.115586 0.114025 
+time_lambda_cd_prep_d 0.538065 0.781657 
+time_lambda_cd_cd 174.548466 192.960699 
+time_lambda_cd_cd_prep 76.24638000005 83.50980900018 
+time_lambda_cd_cd_apply 98.30208599995 109.4508899998 
+time_lambda_cd_ls 15.664221 38.102205 
+boundary_lambda 0 0 
+boundary_theta 1331 758 
+blocks_lambda 1 1 
+blocks_theta 1 1 
+loglik 380193.6826802
+AIC -578739.3653604
+BIC -451477.0143684
+eBIC 5723154.862083
