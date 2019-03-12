@@ -1,6 +1,6 @@
 # Usage exapmles:
-# ./preproc_tfmri.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33 false false false true
-# ./preproc_tfmri.sh /work/code/fs125 LANGUAGE ROIv_scale33 false false false true
+# ./preproc_rfMRI.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33 false false false true
+# ./preproc_rfMRI.sh /work/code/fs125 LANGUAGE ROIv_scale33 false false false true
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
@@ -53,7 +53,7 @@ fi
 # For each subject, download its task fmri file
 # Need to install awscli and configure with access key pairs
 
-fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
+fMRI_FILE_NAME="rfMRI_${fMRI_TASK}"
 FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
 LOG_LIST=$WORK_DIR/"processed_subject_list.log"
 SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
@@ -63,19 +63,19 @@ if $FLAG_DOWNLOAD; then
     while read -r subject;
     do
         echo "Step 1: Subject $subject ......"
-        mkdir -p $WORK_DIR/$subject/tfMRI
+        mkdir -p $WORK_DIR/$subject/rfMRI
         download_success="true"
         for phase in "${PHASE_ENCODING[@]}"
         do
             file_relative_path=MNINonLinear/Results/${fMRI_FILE_NAME}_$phase/${fMRI_FILE_NAME}_$phase.nii.gz
-            if [ ! -f $WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
+            if [ ! -f $WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
                 aws s3 cp s3://hcp-openaccess/HCP/$subject/${file_relative_path} \
-                    $WORK_DIR/$subject/tfMRI --region us-west-2
+                    $WORK_DIR/$subject/rfMRI --region us-west-2
             else
-                echo "Existing tfMRI file found: ${fMRI_FILE_NAME}_$phase.nii.gz"
+                echo "Existing rfMRI file found: ${fMRI_FILE_NAME}_$phase.nii.gz"
             fi
             # check if images are correctly downlaoded
-            if [ ! -f $WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
+            if [ ! -f $WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_$phase.nii.gz ]; then
                 download_success="false"; 
             fi
         done
@@ -101,18 +101,18 @@ if $FLAG_UPSAMPING; then
         echo "Step 2: Subject $subject ......"
         for phase in "${PHASE_ENCODING[@]}"
         do
-            tfMRI_2mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_$phase.nii.gz
-            tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            if [ ! -f $tfMRI_125mm ]; then
-                echo "Upsampling started, input: $tfMRI_2mm"
+            rfMRI_2mm=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_$phase.nii.gz
+            rfMRI_125mm=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+            if [ ! -f $rfMRI_125mm ]; then
+                echo "Upsampling started, input: $rfMRI_2mm"
                 time_start="$(date -u +%s)"
                 3dresample -dxyz 1.25 1.25 1.25 -orient LPI \
-                    -inset $tfMRI_2mm -prefix $tfMRI_125mm -overwrite
+                    -inset $rfMRI_2mm -prefix $rfMRI_125mm -overwrite
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
-                echo "Upsampling finished in ${time_elapsed} seconds, output: $tfMRI_125mm"
+                echo "Upsampling finished in ${time_elapsed} seconds, output: $rfMRI_125mm"
             else
-                echo "Existing upsampled tfMRI file found: $tfMRI_125mm"
+                echo "Existing upsampled rfMRI file found: $rfMRI_125mm"
             fi
         done
     done < $SUBJECT_LIST
@@ -172,18 +172,18 @@ if $FLAG_SMOOTHING; then
         echo "Step 3 (smoothing, optional): Subject $subject ......"
         for phase in "${PHASE_ENCODING[@]}"
         do
-            tfMRI_125mm=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-            tfMRI_125mm_smoothed=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-            if [ ! -f $tfMRI_125mm_smoothed ]; then
-                echo "Spatial smoothing started, input: $tfMRI_125mm"
+            rfMRI_125mm=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+            rfMRI_125mm_smoothed=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+            if [ ! -f $rfMRI_125mm_smoothed ]; then
+                echo "Spatial smoothing started, input: $rfMRI_125mm"
                 time_start="$(date -u +%s)"
-                fslmaths $tfMRI_125mm -kernel gauss 2.548 -fmean $tfMRI_125mm_smoothed
+                fslmaths $rfMRI_125mm -kernel gauss 2.548 -fmean $rfMRI_125mm_smoothed
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
                 echo "Spatial smoothing finished in ${time_elapsed} seconds, \
-                    output: $tfMRI_125mm_smoothed"
+                    output: $rfMRI_125mm_smoothed"
             else
-                echo "Existing spatial smoothed tfMRI found: $tfMRI_125mm_smoothed"
+                echo "Existing spatial smoothed rfMRI found: $rfMRI_125mm_smoothed"
             fi
         done
     done < $SUBJECT_LIST
@@ -235,54 +235,54 @@ if $FLAG_TSEXTRACT; then
         echo "Step 5 (extracting timeseries): Subject $subject ......"
         for phase in "${PHASE_ENCODING[@]}"
         do
-            # Set up input tfMRI image dir and output dir
+            # Set up input rfMRI image dir and output dir
             if $FLAG_SMOOTHING; then
-                tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
-                tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
+                rfMRI_final=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+                rfMRI_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_smoothed_${phase}
             else
-                tfMRI_final=$WORK_DIR/$subject/tfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
-                tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
+                rfMRI_final=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+                rfMRI_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
             fi
-            # Extract timeseries from tfMRI image for each ROI
-            if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
-                echo "Extraction started, input: $tfmri_final"
-                mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
+            # Extract timeseries from rfMRI image for each ROI
+            if [ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+                echo "Extraction started, input: $rfMRI_final"
+                mkdir -p $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                 time_start="$(date -u +%s)"
-                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
-                    > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
+                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
+                    > $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
                 echo "Extraction finished in ${time_elapsed} seconds, output: \
-                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+                    $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
             else
-                echo "Existing extracted timeseries found: $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
+                echo "Existing extracted timeseries found: $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION"
             fi
             # Calculate the averaged timeseries for each ROI
-            tfmri_ts_mean="timeseries_mean.ts"
-            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean ]; then
+            rfMRI_ts_mean="timeseries_mean.ts"
+            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ]; then
                 echo "Averaging timeseries started."
-                python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
+                python ./average_timeseries.py $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $rfMRI_ts_mean
                 echo "Averaging timeseries finished, output: \
-                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean"
+                    $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean"
             else
                 echo "Existing averaged timeseries found: \
-                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean"
+                    $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean"
             fi
             # Compute the correlation
-            tfmri_corrmat="corrmat.fc"
-            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat ]; then
+            rfMRI_corrmat="corrmat.fc"
+            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ]; then
                 echo "Connecitivity matrix construction started."
-                python ./create_corrmat.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
-                    $tfmri_ts_mean $tfmri_corrmat
+                python ./create_corrmat.py $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
+                    $rfMRI_ts_mean $rfMRI_corrmat
                 echo "Connecitivity matrix construction finished, output: \
-                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat"
+                    $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat"
             else
                 echo "Existing correlation matrix found: \
-                    $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat"
+                    $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat"
             fi
             # Archive timeseries
             current_dir="$PWD"
-            cd $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/
+            cd $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/
             if [ -f extracted_ts.tar.gz ]; then rm extracted_ts.tar.gz; fi
             tar zcvf extracted_ts.tar.gz *.txt && rm ./*.txt
             cd $current_dir
