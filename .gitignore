@@ -3,6 +3,7 @@ __pycache__
 *.so
 build/
 fs_results/
+cgmm_results/
 *.DS_Store
 config.yaml
 log*
