@@ -30,7 +30,8 @@ if __name__ == '__main__':
         else:
             print('Invalid subject dir: '+sub_dir)
 
-    with open(os.path.join(root_dir,'aggregated_corrmat.p'), 'wb') as fp:
+    output_file = 'aggregated_corrmat_'+fmri_task+'_'+fmri_atlas+'.p'
+    with open(os.path.join(root_dir,output_file),'wb') as fp:
         pickle.dump(corrmat_dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
 
