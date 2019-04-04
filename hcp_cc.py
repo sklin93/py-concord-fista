@@ -1,5 +1,6 @@
 from scipy.io import loadmat
 import numpy as np
+import pickle
 import sys
 from cc_fista import cc_fista, standardize, pseudol
 import time, yaml
@@ -11,7 +12,7 @@ with open('config.yaml') as info:
 
 fdir = 'fs_results/'
 
-def data_prep(task, normalize_s=False):
+def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 	if task=='resting':
 		dataMat = loadmat(info_dict['data_dir_Bassette']+info_dict['Bassette_file'])
 		sMat = dataMat['Ss']
@@ -24,21 +25,39 @@ def data_prep(task, normalize_s=False):
 		s = np.stack(s, axis=2)
 		f = np.stack(f, axis=2)
 	else:
-		sMat = loadmat(info_dict['data_dir']+info_dict['s_file'])
-		s = sMat['X']
-		# fMat = loadmat(info_dict['data_dir']+info_dict['f_file'])
-		fMat = loadmat(info_dict['data_dir']+'tfMRI-'+task+'.mat')
-		f = fMat['X']
-	 
+		if v1:
+			sMat = loadmat(info_dict['data_dir']+info_dict['s_file'])
+			s = sMat['X']
+			# fMat = loadmat(info_dict['data_dir']+info_dict['f_file'])
+			fMat = loadmat(info_dict['data_dir']+'tfMRI-'+task+'.mat')
+			f = fMat['X']
+		else:
+			with open(info_dict['data_dir']+info_dict['s_file'], 'rb') as f:
+				sdata = pickle.load(f)
+			with open(info_dict['data_dir']+'corrmats_tfMRI_'+task+'_125mm_LR_ROI_scale33.p','rb') as f:
+				fdata = pickle.load(f, encoding='latin1')
+			# if subject ids are not specified, then load all the subject data
+			if subj_ids == None:
+				subj_ids = []
+				for k in sdata:
+					subj_ids.append(k)
+			s = []
+			f = []
+			for subj_id in subj_ids:
+				s.append(sdata[subj_id])
+				f.append(fdata[subj_id])
+			s = np.stack(s, axis=2)
+			f = np.stack(f, axis=2)
+
 	d,_,n = s.shape
 	vec_s = []
 	vec_f = []
-	p = 0
+	# p = 0
 	for i in range(d-1):
-	  for j in range(i+1,d):
-	      vec_s.append(s[i,j])
-	      vec_f.append(f[i,j])
-	      p = p+1
+		for j in range(i+1,d):
+			vec_s.append(s[i,j])
+			vec_f.append(f[i,j])
+			# p = p+1
 	vec_s = np.transpose(np.asarray(vec_s))
 	vec_f = np.transpose(np.asarray(vec_f))
 	if normalize_s:

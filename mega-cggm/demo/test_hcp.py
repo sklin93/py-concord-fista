@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+# Input: method used (CD or BCD)
 method = sys.argv[1]
 # Get Theta from file
 filepath = 'Thetafile_'+method
