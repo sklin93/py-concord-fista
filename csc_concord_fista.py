@@ -363,10 +363,10 @@ def test_inner_stage():
 
 def test_synthetic():
 
-    num_var   = 5
-    num_smp   = 200
-    pct_nnz   = 0.3
-    base_nnz  = 0.7
+    num_var   = 5    # number of variables
+    num_smp   = 200  # number of samples
+    pct_nnz   = 0.3  # percentage of non-zero entries in precision matrix
+    base_nnz  = 0.7  # base value of non-zero entries in precision matrix
 
     # randomly select a certain number of edges
     # as non-zeros in partial correlation graph
@@ -388,13 +388,15 @@ def test_synthetic():
     # generate samples from target distribution
     Sig = inv(Omg)
     D   = np.random.multivariate_normal(np.zeros(num_var), Sig, num_smp)
+    pprint(Omg)
 
     # partial correlation graph estimation
     problem  = csc_concord_fista(D, num_var=num_var, pMat=pMat,
                                  p_lambda=0.5, verbose=False, verbose_inn=True)
-    Omg_est  = problem.solver_convset()
+    Omg_hat  = problem.solver_convset()
 
-    # print('non-overlap nonzero entry count: ', np.count_nonzero(omega-invcov))
+    # output results
+    print('non-overlap nonzero entry count: ', np.count_nonzero(omega-invcov))
 
 
 

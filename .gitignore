@@ -12,3 +12,4 @@ log*
 *.png
 *_hc
 *_rnd
+.vscode/
