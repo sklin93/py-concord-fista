@@ -72,22 +72,23 @@ class csc_concord_fista(object):
     def likelihood_convset(self, Omg, SOmg):
         """ OUTER stage objective 
         Input:
-        Omg:  Omega (d-by-d)
-        SOmg: S * Omega (d-by-d)
+                Omg:  Omega (d-by-d)
+                SOmg: S * Omega (d-by-d)
         """
         # for the gradient and likelihood, should we use log(abs(det))?
         return -2 * np.log(Omg.diagonal()).sum() + (Omg.transpose()*SOmg).sum()
 
     def likelihood_linfty(self, W):
-        """ INNER stage objective """
+        """ INNER stage objective 
+        Input:
+                W: d-by-d, defined as W = A_x - gamma * lambda * B_x
+        """
         # make sure that A_X and B both have empty diagonals
-        W_c = W * self.pMat
+        W_c = W * self.pMat  # W projected onto C
         return norm(W)**2 - norm(W - W_c)**2
 
-
     def update_convset(self, Th, G, tau):
-        """ update Omg_t under convex set constraint """
-
+        """ OUTER stage, update Omg_t under convex set constraint """
         # gradient descent step
         self.A   = Th - tau * G
         self.A_X = self.A.copy()
