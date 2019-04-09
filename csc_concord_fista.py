@@ -54,14 +54,15 @@ class csc_concord_fista(object):
 
         """
         Notes:
-            if step_type_out is 3, then we will use self.p_tau as constant step length
-            in the outer stage; if step_type_inn is 3, then we'll use self.p_kappa as 
-            constant step length in the inner stage.
+            if step_type_out is 3, use self.p_tau as constant step length in the outer stage; 
+            if step_type_inn is 3, use self.p_kappa as constant step length in the inner stage.
         """
 
     def get_sample_cov(self, D):
-        """ comupte sample covariance S from data matrix D """
-
+        """ comupte sample covariance S from data matrix D.
+        Note: S is invariant to mean shift on D.
+        D: n(sample)-by-d(dimension) matrix,
+        """
         num_sample = D.shape[0]
         Y = D - np.tile(D.mean(axis=0), (num_sample,1))
         # should we use biased S-estimator?
@@ -69,14 +70,16 @@ class csc_concord_fista(object):
         return S
 
     def likelihood_convset(self, Omg, SOmg):
-        """ likelihood of outer stage problem """
-
+        """ OUTER stage objective 
+        Input:
+        Omg:  Omega (d-by-d)
+        SOmg: S * Omega (d-by-d)
+        """
         # for the gradient and likelihood, should we use log(abs(det))?
         return -2 * np.log(Omg.diagonal()).sum() + (Omg.transpose()*SOmg).sum()
 
     def likelihood_linfty(self, W):
-        """ likelihood of inner stage problem """
-
+        """ INNER stage objective """
         # make sure that A_X and B both have empty diagonals
         W_c = W * self.pMat
         return norm(W)**2 - norm(W - W_c)**2

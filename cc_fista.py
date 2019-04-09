@@ -340,7 +340,9 @@ def test():
 	# info
 	print(np.count_nonzero(omega))
 	print(np.count_nonzero(invcov))
-	import ipdb; ipdb.set_trace()
+	# import ipdb; ipdb.set_trace()
+	np.set_printoptions(precision=2)
+	print('sigma:\n',sigma)
 	print('omega:\n',omega)
 	print('inferred invcov:\n',invcov)
 	# check if nonzero entries align
