@@ -60,8 +60,9 @@ class csc_concord_fista(object):
 
     def get_sample_cov(self, D):
         """ comupte sample covariance S from data matrix D.
-        Note: S is invariant to mean shift on D.
-        D: n(sample)-by-d(dimension) matrix,
+        S is invariant to mean shift on D.
+        Input:
+            D: n(sample)-by-d(dimension) matrix,
         """
         num_sample = D.shape[0]
         Y = D - np.tile(D.mean(axis=0), (num_sample,1))
@@ -71,17 +72,21 @@ class csc_concord_fista(object):
 
     def likelihood_convset(self, Omg, SOmg):
         """ OUTER stage objective 
+        h(Omega) = -2*log(Omega) + tr(S @ Omega^2)
         Input:
-                Omg:  Omega (d-by-d)
-                SOmg: S * Omega (d-by-d)
+            Omg:  Omega (d-by-d)
+            SOmg: S * Omega (d-by-d)
         """
         # for the gradient and likelihood, should we use log(abs(det))?
+        # Accelerate via equality: tr(A.transpose()@A) = (A*A).sum()
         return -2 * np.log(Omg.diagonal()).sum() + (Omg.transpose()*SOmg).sum()
 
     def likelihood_linfty(self, W):
         """ INNER stage objective 
+        W = A_x - ganp.tracemma * lambda * B_x
+        g(B_x) = ||W||^2 - ||P_perp_to_c (W)||^2
         Input:
-                W: d-by-d, defined as W = A_x - gamma * lambda * B_x
+            W: d-by-d
         """
         # make sure that A_X and B both have empty diagonals
         W_c = W * self.pMat  # W projected onto C
