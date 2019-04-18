@@ -104,7 +104,8 @@ class csc_concord_fista(object):
 
         # use inner stage to compute current optimal B
         B   = self.solver_linfty()
-        # B   = self.solver_linfty_cvx()
+        B_temp   = self.solver_linfty_cvx()
+        
 
         # proximal operator of convex set constraint
         # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
@@ -118,18 +119,21 @@ class csc_concord_fista(object):
         """cvx version of inner stage solver"""
     
         A_x  = self.A_X
-        B    = cvx.Variable(np.shape(A_x))
-        mask = np.ones(np.shape(A_x)) - np.eye(A_x.shape[0])
-        
-        W = A_x - self.p_gamma * self.p_lambda * mask * B
-        W_c = W * self.pMat
-        loss = cvx.norm(W, "fro") - cvx.norm(W_c, "fro") 
+        dim  = A_x.shape[0]
+        B    = cvx.Variable((dim, dim))
+        loss = 0
+        for i in range(dim):
+            for j in range(dim):
+                if i == j: 
+                    continue
+                if self.pMat == 1:
+                    loss += cvx.norm(A_x[i,j]-self.p_gamma*self.p_lambda*B[i,j]) ** 2
 
         obj = cvx.Minimize(loss)
         constraints = [-1 <= B, B <= 1]
 
         prob = cvx.Problem(obj, constraints)
-        prob.solve(verbose=True, gp=True)
+        prob.solve(verbose=True)
         print("Is this problem DGP?", prob.is_dgp())
 
         print("status:", prob.status)
