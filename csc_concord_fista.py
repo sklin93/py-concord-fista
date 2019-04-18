@@ -14,9 +14,11 @@ import sys, os, pickle
 class csc_concord_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 
-    def __init__(self, D, num_var, sample_cov=False, record=True, pMat=None, p_gamma=1.0, p_lambda=1.0,
-        verbose=True, MAX_ITR=50, TOL=1e-5, p_tau=0.5, c_outer=0.9, alpha_out=1.0, step_type_out=3,
-        verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-5, p_kappa=0.5, c_inner=0.9, alpha_inn=1.0, step_type_inn=3):
+    def __init__(self, D, num_var, sample_cov=False, record=True, pMat=None, 
+        p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=50, TOL=1e-5, 
+        p_tau=0.5, c_outer=0.9, alpha_out=1.0, step_type_out=3,
+        verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
+        c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False):
 
         super(csc_concord_fista, self).__init__()
         self.record      = record
@@ -45,6 +47,7 @@ class csc_concord_fista(object):
         self.c_inner     = c_inner
         self.alpha_inn   = alpha_inn
         self.step_type_inn  = step_type_inn
+        self.verbose_inn_details = verbose_inn_details
 
         # solution initialization
         # make sure initial B_init has all zero diagonals
@@ -104,8 +107,8 @@ class csc_concord_fista(object):
 
         # use inner stage to compute current optimal B
         B   = self.solver_linfty()
-        B_temp   = self.solver_linfty_cvx()
-        
+        B   = self.solver_linfty_cvx()
+        np.fill_diagonal(B, 0)
 
         # proximal operator of convex set constraint
         # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
@@ -116,7 +119,8 @@ class csc_concord_fista(object):
         return Omg
 
     def solver_linfty_cvx(self):
-        """cvx version of inner stage solver"""
+        """cvx version of inner stage solver,
+        specifically for edge-forbidden constraints"""
     
         A_x  = self.A_X
         dim  = A_x.shape[0]
@@ -126,19 +130,21 @@ class csc_concord_fista(object):
             for j in range(dim):
                 if i == j: 
                     continue
-                if self.pMat == 1:
+                if self.pMat[i,j] == 1:
                     loss += cvx.norm(A_x[i,j]-self.p_gamma*self.p_lambda*B[i,j]) ** 2
 
         obj = cvx.Minimize(loss)
         constraints = [-1 <= B, B <= 1]
 
         prob = cvx.Problem(obj, constraints)
-        prob.solve(verbose=True)
-        print("Is this problem DGP?", prob.is_dgp())
+        prob.solve(verbose=False)
+        # print("Is this problem DGP?", prob.is_dgp())
 
-        print("status:", prob.status)
-        print("optimal value", prob.value)
-        return prob.value
+        print("\n- - - solving inner problem with CVXPY - - - ")
+        # print("status:", prob.status)
+        print("optimal value:", prob.value)
+        print("solution B_x: "); print(B.value)
+        return B.value
 
     def update_linfty(self, Th_, G_, kappa):
         """ update B_t' under l_infty norm constraint """
@@ -147,13 +153,13 @@ class csc_concord_fista(object):
         Note: Such update strategy will guarantee all zeros on diagonal of B,
         if the initial Th_ has all zero diagonals. """
         A_ = Th_ - kappa * G_
-        # if self.verbose_inn:
-        #     print("inner stage [B_X before proximal operation]")
-        #     pprint(A_)
+        if self.verbose_inn_details:
+            print("inner stage [B_X before proximal operation]")
+            pprint(A_)
         B  = np.sign(A_) * np.minimum(abs(A_), np.ones(A_.shape))
-        # if self.verbose_inn:
-        #     print("inner stage [B_X after proximal operation]")
-        #     pprint(B)
+        if self.verbose_inn_details:
+            print("inner stage [B_X after proximal operation]")
+            pprint(B)
         return B
 
     def solver_convset(self):
@@ -186,17 +192,21 @@ class csc_concord_fista(object):
             itr_back = 0
             tau      = tau_n
 
-            if self.verbose: print("\n = = = iteration "+str(itr)+" = = = ")
+            if self.verbose: 
+                print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
 
             # constant step length
             if self.step_type_out == 3:
+                if self.verbose:
+                    print("\n- - - OUTER problem solution UPDATING - - -")
                 Omg_n   = self.update_convset(Th, G, tau)
                 SOmg_n  = self.S @ Omg_n
                 # h_n     = self.likelihood_convset(Omg_n, SOmg_n)
                 h_n     = (Omg_n.transpose()*SOmg_n).sum()
                 if self.verbose:
-                    print("first term: "+str(-2 * np.log(Omg.diagonal()).sum()) + \
-                        " | second term: "+str((Omg_n.transpose()*SOmg_n).sum()))
+                    print("\n- - - OUTER problem solution UPDATED - - -\n" + \
+                        "1st term: "+"{:.2f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
+                        " | 2nd term: "+"{:.2f}".format((Omg_n.transpose()*SOmg_n).sum()))
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
@@ -264,7 +274,9 @@ class csc_concord_fista(object):
             if self.verbose: 
                 # print("updated Omega:"); print(Omg)
                 # print("updated Theta:"); print(Th)
-                print("error: "+str(cur_err)+", subg norm:"+str(norm(subg))+", h function value:"+str(h))
+                print("error: "+"{:.2f}".format(cur_err)+\
+                    ", subg norm:"+"{:.2f}".format(norm(subg))+\
+                    ", h function value:"+"{:.2f}".format(h))
                 # if np.isnan(h): sys.exit()
 
             # check termination condition:
@@ -301,11 +313,14 @@ class csc_concord_fista(object):
         loop  = True
         itr   = itr_back = 0
         g_n   = R_n      = 0.0
+        if self.verbose_inn: 
+            print("\n - - - solving inner problem with FISTA - - -")
         while loop:
             itr_back = 0
             kappa    = kappa_n
 
-            if self.verbose_inn: print("\n - - - inner loop [itr " + str(itr) + "]:")
+            if self.verbose_inn_details: 
+                print(">>> inner loop [itr " + str(itr) + "]:")
 
             # constant step length
             if self.step_type_inn == 3:
@@ -365,17 +380,21 @@ class csc_concord_fista(object):
             itr     += 1
 
             # print
-            if self.verbose_inn: 
-                print(" - - - cur_err: " + str(cur_err) + ", g(B_n) = " + str(g))
+            if self.verbose_inn_details: 
+                print(" >>> cur_err: " + str(cur_err) + ", g(B_n) = " + str(g))
 
         # end of (while loop)
+        if self.verbose_inn:
+            print("optimal value:", g)
+            print("solution B_x: "); print(B)
 
         return B_n
     # end of solver_convset
 
 
 def set_mat_from_triu(vec, num_var, nnz_index):
-    """ Build a symmetric matrix [M] from
+    """ ARCHIVED
+        Build a symmetric matrix [M] from
         a given vector [vec] which contains all upper triangular entries
         and a corresponding non-zero index vector [nnz_index] """
 
@@ -387,7 +406,7 @@ def set_mat_from_triu(vec, num_var, nnz_index):
     return M
 
 def create_sparse_mat(num_var):
-
+    """ ARCHIVED """
     num_nnz   = 3
     num_edge  = int(num_var*(num_var-1)/2)
     nnz_index = np.random.choice(range(num_edge), num_nnz, replace=False)
@@ -402,13 +421,6 @@ def create_sparse_mat(num_var):
     pMat = set_mat_from_triu(mask_vec, num_var, nnz_index)
 
     return [Omg, pMat]
-
-
-def test_inner_stage():
-
-    """ test correctness of inner-stage FISTA solver"""
-
-    pass
 
 
 def generate_synthetic(syndata_file):
@@ -473,7 +485,7 @@ def test_synthetic(syndata_file):
 
 if __name__ == "__main__":
 
-    # np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
+    np.set_printoptions(formatter={'float': '{: 0.2f}'.format})
 
     syndata_file = 'data-utility/syn.pkl'
     if not os.path.isfile(syndata_file):
