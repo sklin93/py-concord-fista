@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import norm, inv
 from math import sqrt
-import csv
+import csv, pickle, os
 
 def standardize(D):
 	S = D - np.tile(D.mean(axis=0),(D.shape[0],1))
@@ -116,8 +116,11 @@ class cc_fista(object):
 			diagitr = backitr = 0
 			inner_ctr = 0
 
+			print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
+
 			if self.steptype == 3: # constant stepsize without inner loop
 				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
+				# print("Xn="); print(Xn)
 			else:
 				while True:
 					inner_ctr += 1
@@ -169,6 +172,7 @@ class cc_fista(object):
 			h = hn
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
+			if v: print('f:', f)
 			itr += 1
 			cur_err = subgnorm/Xnnorm
 			if v: print('err',cur_err)
@@ -285,47 +289,6 @@ class cc_fista(object):
 			W = self.S@X
 		return pseudol(X,W)
 
-class csc_cc_fista(cc_fista):
-	"""concord fista designed specially for recovering partial correlations 
-	between structrual and functional networks, while limiting the number of
-	connected components in the recovered networks (in per row/ per function manner)."""
-	def __init__(self, arg):
-		super(csc_cc_fista, self).__init__()
-		self.arg = arg
-
-	def build_L(omega, row_idx):
-		"""build Laplacian Matrix from row i (indicated by row_idx) of Omega, 
-		after each iteration update. Result should be d(#regions)*d"""
-		p, _ = omega.shape
-		d = 0.5 + sqrt(2*p + 0.25)
-		assert int(d) == d, 'inferred region number is not an int'
-		d = int(d)
-		assert d * (d-1) / 2 == p, 'dimension mismatch'
-
-		A = np.zeros((d,d))
-		ctr = 0
-		for i in range(d-1):
-			for j in range(i+1, d):
-				if omega[row_idx, ctr] != 0:
-					A[i,j] = 1
-				ctr += 1
-		A += A.T
-		D = np.diag(sum(A))
-		return (D - A)
-
-	def csc_L(L):
-		"""set constraint on Laplacian Matrices. Resulting in #rows approximated L 
-		that corresponds to fewer number of connected componets (& smoother?)"""
-		pass
-
-	def build_omega():
-		"""from approximated L, rebuild Omega_FS and feed into main concord fista
-		for the next iteration"""
-		
-	def infer_cc_csc():
-		"""combine main fista step and connected component constraining for the final inference"""
-		pass
-		
 def test():
 	# data_prep
 	p = 10
@@ -350,5 +313,28 @@ def test():
 	invcov[invcov!=0] = 1
 	print('non-overlap nonzero entry count: ', np.count_nonzero(omega-invcov))
 
+def test_synthetic():
+
+	# load data
+	syndata_file = 'data-utility/syn.pkl'
+	if not os.path.isfile(syndata_file):
+		print(syndata_file+" does not exist!")
+	else:
+		print("Loading synthetic dataset ... \n")
+		with open(syndata_file, 'rb') as p:
+			(Omg, Sig, D, pMat, num_var, num_smp) = pickle.load(p)
+		print("Loaded ... Groundtruth Omega:")
+		print(Omg)
+	# infer
+	fi = cc_fista(D,0.5,v=True, maxit=300, steptype=3, const_ss=0.1)
+	invcov = fi.infer()
+	# output
+	print('omega:\n',Omg)
+	print('inferred invcov:\n',invcov)
+
+
 if __name__ == '__main__':
-	test()
+	
+	np.set_printoptions(precision=2)
+	# test()
+	test_synthetic() # more complicated and valid synthetic dataset

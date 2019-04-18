@@ -11,16 +11,16 @@ from pprint import pprint
 import sys, os, pickle
 
 
-class csc_concord_fista(object):
+class cscc_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 
     def __init__(self, D, num_var, sample_cov=False, record=True, pMat=None, 
-        p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=50, TOL=1e-5, 
-        p_tau=0.5, c_outer=0.9, alpha_out=1.0, step_type_out=3,
+        p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=300, TOL=1e-5, 
+        p_tau=1, c_outer=0.9, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
         verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
         c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False):
 
-        super(csc_concord_fista, self).__init__()
+        super(cscc_fista, self).__init__()
         self.record      = record
 
         # inout parameters of primal problem
@@ -38,6 +38,7 @@ class csc_concord_fista(object):
         self.c_outer     = c_outer
         self.alpha_out   = alpha_out
         self.step_type_out  = step_type_out
+        self.const_ss_out = const_ss_out
 
         # inner stage parameters
         self.verbose_inn = verbose_inn
@@ -105,16 +106,26 @@ class csc_concord_fista(object):
         self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
 
-        # use inner stage to compute current optimal B
-        B   = self.solver_linfty()
-        B   = self.solver_linfty_cvx()
-        np.fill_diagonal(B, 0)
+        no_constraints = True
+        if not no_constraints:
+            # Use inner stage to compute current optimal B.
+            # You can use CVX library to check the correctness of
+            # our FISTA implementation of inner problem solver.
+            B   = self.solver_linfty()
+            # B   = self.solver_linfty_cvx()
+            np.fill_diagonal(B, 0)
 
-        # proximal operator of convex set constraint
-        # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
-        W   = self.A_X - self.p_gamma * self.p_lambda * B
-        # add diagonal entries from A
-        Omg = W * self.pMat + np.diag(np.diag(self.A))
+            # proximal operator of convex set constraint
+            # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
+            W   = self.A_X - self.p_gamma * self.p_lambda * B
+            # add diagonal entries from A
+            Omg = W * self.pMat + np.diag(np.diag(self.A))
+        
+        else:
+            # print("No constraint is applied.")
+            LambdaMat = self.p_lambda * np.ones((self.num_var, self.num_var))
+            np.fill_diagonal(LambdaMat, 0)
+            Omg = np.sign(self.A) * np.maximum(abs(self.A)-tau*LambdaMat, 0.0)
 
         return Omg
 
@@ -168,6 +179,8 @@ class csc_concord_fista(object):
         tau_n  = self.p_tau
         alpha  = self.alpha_out
         Lambda = self.p_lambda * np.ones(self.Omg_init.shape)
+        if self.step_type_out == 3:
+            tau_n = self.const_ss_out
 
         # Omega initial likelihood
         Omg  = self.Omg_init.copy()
@@ -177,7 +190,7 @@ class csc_concord_fista(object):
         # Theta & initial gradient
         Th   = self.Omg_init.copy()
         ThS  = Th @ self.S  # Theta*S or S*Theta
-        G = -2 * np.diag(1.0/Th.diagonal()) + 2 * ThS
+        G = - np.diag(1.0/Th.diagonal()) + 0.5*(ThS + ThS.transpose())
 
         # initial A
         self.A   = Th - self.p_tau * G
@@ -194,19 +207,14 @@ class csc_concord_fista(object):
 
             if self.verbose: 
                 print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
+                print("\n- - - OUTER problem solution UPDATING - - -")
 
             # constant step length
             if self.step_type_out == 3:
-                if self.verbose:
-                    print("\n- - - OUTER problem solution UPDATING - - -")
                 Omg_n   = self.update_convset(Th, G, tau)
+                # print("Omega_n="); print(Omg_n)
                 SOmg_n  = self.S @ Omg_n
-                # h_n     = self.likelihood_convset(Omg_n, SOmg_n)
-                h_n     = (Omg_n.transpose()*SOmg_n).sum()
-                if self.verbose:
-                    print("\n- - - OUTER problem solution UPDATED - - -\n" + \
-                        "1st term: "+"{:.2f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
-                        " | 2nd term: "+"{:.2f}".format((Omg_n.transpose()*SOmg_n).sum()))
+                h_n     = self.likelihood_convset(Omg_n, SOmg_n)
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
@@ -229,6 +237,10 @@ class csc_concord_fista(object):
                         break
                 # end of (while True)
             # end of else
+            if self.verbose:
+                print("\n- - - OUTER problem solution UPDATED - - -\n" + \
+                    "1st term: "+"{:.10f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
+                    " | 2nd term: "+"{:.10f}".format((Omg_n.transpose()*SOmg_n).sum()))
 
             # FISTA momentum update step
             alpha_n = (1 + sqrt(1 + 4*(alpha**2)))/2
@@ -236,7 +248,7 @@ class csc_concord_fista(object):
             # update meta variable
             ThS = Th @ self.S
             # update gradient
-            G_n = -2 * np.diag(1.0/Th.diagonal()) + 2 * ThS
+            G_n = - np.diag(1.0/Th.diagonal()) + 0.5*(ThS + ThS.transpose())
             # update tau for next opt iteration
             if self.step_type_out == 0:
                 tau_n = 1
@@ -276,7 +288,7 @@ class csc_concord_fista(object):
                 # print("updated Theta:"); print(Th)
                 print("error: "+"{:.2f}".format(cur_err)+\
                     ", subg norm:"+"{:.2f}".format(norm(subg))+\
-                    ", h function value:"+"{:.2f}".format(h))
+                    ", h function value:"+"{:.10f}".format(h))
                 # if np.isnan(h): sys.exit()
 
             # check termination condition:
@@ -422,7 +434,6 @@ def create_sparse_mat(num_var):
 
     return [Omg, pMat]
 
-
 def generate_synthetic(syndata_file):
 
     num_var   = 7    # number of variables
@@ -471,15 +482,14 @@ def test_synthetic(syndata_file):
     print(Omg)
     
     # partial correlation graph estimation
-    problem  = csc_concord_fista(D, num_var=num_var, pMat=pMat,
-                                 p_lambda=0.5, verbose=True, verbose_inn=True)
+    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=50,
+                    step_type_out = 3, const_ss_out = 0.2,
+                    p_lambda=0.25, p_tau=0.5, verbose=True, verbose_inn=True)
     Omg_hat  = problem.solver_convset()
 
     # output results
     print('non-overlap nonzero entry count: ', np.count_nonzero(Omg_hat))
-
     return
-
 
 
 
