@@ -8,15 +8,15 @@ from scipy.stats import ortho_group
 from scipy.linalg import norm, inv
 from pprint import pprint
 
-import sys
+import sys, os, pickle
 
 
 class csc_concord_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 
     def __init__(self, D, num_var, sample_cov=False, record=True, pMat=None, p_gamma=1.0, p_lambda=1.0,
-        verbose=True, MAX_ITR=300, TOL=1e-5, p_tau=0.2, c_outer=0.9, alpha_out=1.0, step_type_out=3,
-        verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-3, p_kappa=0.5, c_inner=0.9, alpha_inn=1.0, step_type_inn=3):
+        verbose=True, MAX_ITR=50, TOL=1e-5, p_tau=0.5, c_outer=0.9, alpha_out=1.0, step_type_out=3,
+        verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-5, p_kappa=0.5, c_inner=0.9, alpha_inn=1.0, step_type_inn=3):
 
         super(csc_concord_fista, self).__init__()
         self.record      = record
@@ -143,13 +143,13 @@ class csc_concord_fista(object):
         Note: Such update strategy will guarantee all zeros on diagonal of B,
         if the initial Th_ has all zero diagonals. """
         A_ = Th_ - kappa * G_
-        if self.verbose_inn:
-            print("inner stage [B_X before proximal operation]")
-            pprint(A_)
+        # if self.verbose_inn:
+        #     print("inner stage [B_X before proximal operation]")
+        #     pprint(A_)
         B  = np.sign(A_) * np.minimum(abs(A_), np.ones(A_.shape))
-        if self.verbose_inn:
-            print("inner stage [B_X after proximal operation]")
-            pprint(B)
+        # if self.verbose_inn:
+        #     print("inner stage [B_X after proximal operation]")
+        #     pprint(B)
         return B
 
     def solver_convset(self):
@@ -182,13 +182,17 @@ class csc_concord_fista(object):
             itr_back = 0
             tau      = tau_n
 
-            if self.verbose: print(" = = = iteration "+str(itr)+" = = = ")
+            if self.verbose: print("\n = = = iteration "+str(itr)+" = = = ")
 
             # constant step length
             if self.step_type_out == 3:
                 Omg_n   = self.update_convset(Th, G, tau)
                 SOmg_n  = self.S @ Omg_n
-                h_n     = self.likelihood_convset(Omg_n, SOmg_n)
+                # h_n     = self.likelihood_convset(Omg_n, SOmg_n)
+                h_n     = (Omg_n.transpose()*SOmg_n).sum()
+                if self.verbose:
+                    print("first term: "+str(-2 * np.log(Omg.diagonal()).sum()) + \
+                        " | second term: "+str((Omg_n.transpose()*SOmg_n).sum()))
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
@@ -254,10 +258,10 @@ class csc_concord_fista(object):
             cur_err   = norm(subg) / norm(Omg_n)
 
             if self.verbose: 
-                print("updated Omega:"); print(Omg)
-                print("updated Theta:"); print(Th)
+                # print("updated Omega:"); print(Omg)
+                # print("updated Theta:"); print(Th)
                 print("error: "+str(cur_err)+", subg norm:"+str(norm(subg))+", h function value:"+str(h))
-                if np.isnan(h): sys.exit()
+                # if np.isnan(h): sys.exit()
 
             # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
@@ -357,7 +361,8 @@ class csc_concord_fista(object):
             itr     += 1
 
             # print
-            if self.verbose_inn: print(" - - - cur_err: " + str(cur_err) + ", g(B_n) = " + str(g))
+            if self.verbose_inn: 
+                print(" - - - cur_err: " + str(cur_err) + ", g(B_n) = " + str(g))
 
         # end of (while loop)
 
@@ -402,7 +407,7 @@ def test_inner_stage():
     pass
 
 
-def test_synthetic():
+def generate_synthetic(syndata_file):
 
     num_var   = 7    # number of variables
     num_smp   = 200  # number of samples
@@ -412,7 +417,7 @@ def test_synthetic():
     # randomly select a certain number of edges
     # as non-zeros in partial correlation graph
 
-    # create sparse symmetric positive definite matrix
+    # create sparse symmetric positive definite matrix:
     # Every positive-definite matrix has a Cholesky decomposition that takes the form LL' where L is lower triangular, 
     # so sample L and compute a positive-definite matrix from it. If L is sparse then LL' is also sparse. 
     # Make sure L is less sparse then what you want your final matrix to be.
@@ -434,19 +439,42 @@ def test_synthetic():
     D   = np.random.multivariate_normal(np.zeros(num_var), Sig, num_smp)
     pprint(Omg)
 
+    # save generated model and samples
+    with open(syndata_file, 'wb') as p:
+        pickle.dump((Omg, Sig, D, pMat, num_var, num_smp), p)
+
+    return
+
+
+def test_synthetic(syndata_file):
+
+    print("Loading synthetic dataset ... \n")
+    with open(syndata_file, 'rb') as p:
+        (Omg, Sig, D, pMat, num_var, num_smp) = pickle.load(p)
+    print("Loaded ... Groundtruth Omega:")
+    print(Omg)
+    
     # partial correlation graph estimation
     problem  = csc_concord_fista(D, num_var=num_var, pMat=pMat,
-                                 p_lambda=0.5, verbose=True, verbose_inn=False)
+                                 p_lambda=0.5, verbose=True, verbose_inn=True)
     Omg_hat  = problem.solver_convset()
 
     # output results
     print('non-overlap nonzero entry count: ', np.count_nonzero(Omg_hat))
+
+    return
 
 
 
 
 if __name__ == "__main__":
 
-    np.set_printoptions(precision=2)
-    test_synthetic()
+    # np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
 
+    syndata_file = 'data-utility/syn.pkl'
+    if not os.path.isfile(syndata_file):
+        print("Generating synthetic dataset ... \n")
+        generate_synthetic(syndata_file)
+
+    test_synthetic(syndata_file)
+    
