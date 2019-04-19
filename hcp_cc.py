@@ -87,7 +87,7 @@ def f_only(task, lam):
 	print(fi.loss())
 
 def s_f(task, lam, check_loss_only=False, split=False):
-	vec_s, vec_f = data_prep(task)
+	vec_s, vec_f = data_prep(task, v1=False)
 	if split:
 		train_num = int(vec_s.shape[0]*0.8)
 		vec_s = vec_s[:train_num,:]
@@ -103,7 +103,7 @@ def s_f(task, lam, check_loss_only=False, split=False):
 	omega = fi.infer()
 	print((time.time()-start)/60)
 	if split:
-		np.save(fdir+str(lam)+'_er_train_'+task+'.npy',omega)
+		np.save(fdir+str(lam)+'_er_train_hcp2_'+task+'.npy',omega)
 	else:
 		np.save(fdir+str(lam)+'_1stage_er2_'+task+'.npy',omega)
 	print(np.count_nonzero(omega))
@@ -116,6 +116,7 @@ def s_f(task, lam, check_loss_only=False, split=False):
 	# import ipdb; ipdb.set_trace()
 
 def s_f_direct(task,lam):
+	'''directly perform concord on p*p matrix instead of d*p'''
 	vec_s, vec_f = data_prep(task)
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
@@ -213,7 +214,7 @@ if __name__ == '__main__':
 	task = sys.argv[1]
 
 	# f_only(task,lam=0.1)
-	s_f(task,lam=0.0014, check_loss_only=False, split=True) # use 0.0012 for normalization 2
+	s_f(task,lam=0.0008, check_loss_only=False, split=True) # use 0.0012 for normalization 2
 	# s_f_direct(task,lam=0.08)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
