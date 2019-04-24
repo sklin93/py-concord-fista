@@ -88,7 +88,7 @@ def rnd_omega_1(omega):
 	return rnd_w
 
 def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False, 
-			use_train=False, hard_constraint=True, check_constraint=False):
+			use_train=False, hard_constraint=True, check_constraint=False, task=""):
 	if use_train:
 		train_num = int(vec_s.shape[0]*0.8)
 		train_s = vec_s[:train_num,:]
@@ -200,7 +200,8 @@ if __name__ == '__main__':
 	# evaluate(vec_s, vec_f, omega)
 
 	fdir = 'fs_results/'
-	regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=True, lambd_values=lambd)
+	regression(vec_s, vec_f, omega, fdir, use_rnd=False, \
+		use_train=True, lambd_values=lambd, task=task)
 	# '''
 	# load pred_f, should be in shape n*p
 	# pred_f = np.load('./cgmm_results/pred_f_CD_0.005.npy')
