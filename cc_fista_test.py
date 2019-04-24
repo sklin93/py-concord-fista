@@ -19,5 +19,4 @@ lambd = 0.003
 vec_s, vec_f = data_prep(task, v1=False, subj_ids=None)
 omega = load_omega(task, mid='_er_train_hcp2_', lam=lambd)
 fdir = 'fs_results/'
-regression(vec_s, vec_f, omega, fdir, \
-        use_rnd=False, use_train=True, lambd_values=lambd)
+regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=True, lambd_values=lambd)
