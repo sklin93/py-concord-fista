@@ -194,7 +194,7 @@ if __name__ == '__main__':
 		omega = load_omega(task,mid='_',lam=0.1)
 	else:
 		# omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-                omega = load_omega(task,mid='_er_train_hcp2_',lam=0.003)
+        omega = load_omega(task,mid='_er_train_hcp2_',lam=0.003)
 	# omega = rnd_omega_1(omega)
 	# print(np.count_nonzero(omega))
 	# evaluate(vec_s, vec_f, omega)
