@@ -482,7 +482,7 @@ def test_synthetic(syndata_file):
     print(Omg)
     
     # partial correlation graph estimation
-    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=50,
+    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=100,
                     step_type_out = 3, const_ss_out = 0.2,
                     p_lambda=0.25, p_tau=0.5, verbose=True, verbose_inn=True)
     Omg_hat  = problem.solver_convset()

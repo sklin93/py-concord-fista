@@ -1,11 +1,10 @@
 import numpy as np
-import sys
+import sys, pickle, datetime
 from tqdm import tqdm
 from cvxpy import *
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import mean_squared_error
 from math import sqrt
-import pickle
 from scipy.io import loadmat
 
 from hcp_cc import data_prep
@@ -158,10 +157,11 @@ def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False,
 		cur_cc, cur_pval, cur_rmse = evaluate(val_s, val_f, result)
 		# save the best
 		if cur_rmse < _min:
+			time_postfix='{date:%m-%d-%H-%M-%S}'.format(date=datetime.datetime.now())
 			if use_train:
-				np.save(fdir+'weights_train_'+task+'.npy', result)
+				np.save(fdir+'weights_train_'+task+'_'+time_postfix+'.npy', result)
 			else:
-				np.save(fdir+'weights_'+task+'.npy', result)
+				np.save(fdir+'weights_'+task+'_'+time_postfix+'.npy', result)
 			_min = cur_rmse
 		print(lambd, np.count_nonzero(result), cur_cc, cur_pval, cur_rmse)
 		if check_constraint:

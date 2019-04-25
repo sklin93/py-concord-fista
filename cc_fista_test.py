@@ -11,10 +11,10 @@ n_roi = 83
 for k in range(5):
     i = np.random.randint(low=0, high=n_roi-1)
     j = np.random.randint(low=i+1, high=n_roi-1)
-    # cc_fista_inspect.check_single_edge(i, j, sdata, fdata)
+    cc_fista_inspect.check_single_edge(i, j, sdata, fdata)
 
 # run regression for a single f edge
-lambd = 0.003
+lambd = 0.0016
 vec_s, vec_f = data_prep(task, v1=False, subj_ids=None)
 omega = load_omega(task, mid='_er_train_hcp2_', lam=lambd)
 fdir = 'fs_results/'
@@ -22,6 +22,7 @@ regression(vec_s, vec_f, omega, fdir, use_rnd=False, \
     use_train=True, lambd_values=[lambd], task=task)
 
 # run regression in sklearn
+
 
 
 
