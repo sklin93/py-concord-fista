@@ -11,7 +11,7 @@ n_roi = 83
 for k in range(5):
     i = np.random.randint(low=0, high=n_roi-1)
     j = np.random.randint(low=i+1, high=n_roi-1)
-    cc_fista_inspect.check_single_edge(i, j, sdata, fdata)
+    # cc_fista_inspect.check_single_edge(i, j, sdata, fdata)
 
 # run regression for a single f edge
 lambd = 0.0016
