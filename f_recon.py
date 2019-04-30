@@ -1,11 +1,10 @@
 import numpy as np
-import sys
+import sys, pickle, datetime
 from tqdm import tqdm
 from cvxpy import *
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import mean_squared_error
 from math import sqrt
-import pickle
 from scipy.io import loadmat
 
 from hcp_cc import data_prep
@@ -88,7 +87,7 @@ def rnd_omega_1(omega):
 	return rnd_w
 
 def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False, 
-			use_train=False, hard_constraint=True, check_constraint=False):
+			use_train=False, hard_constraint=True, check_constraint=False, task=""):
 	if use_train:
 		train_num = int(vec_s.shape[0]*0.8)
 		train_s = vec_s[:train_num,:]
@@ -158,10 +157,11 @@ def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False,
 		cur_cc, cur_pval, cur_rmse = evaluate(val_s, val_f, result)
 		# save the best
 		if cur_rmse < _min:
+			time_postfix='{date:%m-%d-%H-%M-%S}'.format(date=datetime.datetime.now())
 			if use_train:
-				np.save(fdir+'weights_train_'+task+'.npy', result)
+				np.save(fdir+'weights_train_'+task+'_'+time_postfix+'.npy', result)
 			else:
-				np.save(fdir+'weights_'+task+'.npy', result)
+				np.save(fdir+'weights_'+task+'_'+time_postfix+'.npy', result)
 			_min = cur_rmse
 		print(lambd, np.count_nonzero(result), cur_cc, cur_pval, cur_rmse)
 		if check_constraint:
@@ -224,14 +224,16 @@ if __name__ == '__main__':
 		omega = load_omega(task,mid='_',lam=0.1)
 	else:
 		# omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-                omega = load_omega(task,mid='_er_train_hcp2_',lam=0.003)
+		omega = load_omega(task,mid='_er_train_hcp2_',lam=0.003)
 	# omega = rnd_omega_1(omega)
 	# print(np.count_nonzero(omega))
 	# evaluate(vec_s, vec_f, omega)
 
 	fdir = 'fs_results/'
-	regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=True, lambd_values=lambd)
 	'''
+	regression(vec_s, vec_f, omega, fdir, use_rnd=False, \
+		use_train=True, lambd_values=lambd, task=task)
+	# '''
 	# load pred_f, should be in shape n*p
 	# pred_f = np.load('./cgmm_results/pred_f_CD_lang_train_0.0271_0.0004.npy')
 	# pred_f = np.load('pred_f_vae_train.npy')
