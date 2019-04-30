@@ -171,6 +171,36 @@ def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False,
 			ratio, _ = nz_share(tmp,omega)
 			print(ratio)
 
+def diag_only_obj(vec_s, vec_f, w, lam):
+	loss = 0
+	for i in range(len(vec_s)):
+		loss += sum_squares(vec_f[i] - multiply(vec_s[i],w))
+	return loss + lam*norm(w)**2
+
+def diag_only_reg(vec_s, vec_f, lam=0.1, use_train=False):
+	if use_train:
+		train_num = int(vec_s.shape[0]*0.8)
+		train_s = vec_s[:train_num,:]
+		train_f = vec_f[:train_num,:]
+		test_s = vec_s[train_num:,:]
+		test_f = vec_f[train_num:,:]
+	else:
+		train_s = vec_s
+		train_f = vec_f
+		test_s = vec_s
+		test_f = vec_f
+	p = vec_s.shape[1]
+	w = Variable(p)
+
+	prob = Problem(Minimize(diag_only_obj(train_s, train_f, w, lam)))
+	prob.solve()
+	w_ = w.value
+	pred_f = test_s*np.repeat([w_],len(test_f),axis=0)
+	print(pred_f.shape)
+	evaluate(test_s, test_f, pred_f, is_pred=True)
+	return pred_f
+
+	
 if __name__ == '__main__':
 	if len(sys.argv) == 2:
 		task = sys.argv[1]
@@ -188,7 +218,7 @@ if __name__ == '__main__':
 	# vec_s, vec_f = data_prep(task)
 	# vec_s, vec_f = vec_s[:14], vec_f[:14]
 	
-	# '''
+	'''
 	# load omega
 	if task == 'resting':
 		omega = load_omega(task,mid='_',lam=0.1)
@@ -201,25 +231,27 @@ if __name__ == '__main__':
 
 	fdir = 'fs_results/'
 	regression(vec_s, vec_f, omega, fdir, use_rnd=False, use_train=True, lambd_values=lambd)
-	# '''
+	'''
 	# load pred_f, should be in shape n*p
-	# pred_f = np.load('./cgmm_results/pred_f_CD_0.005.npy')
+	# pred_f = np.load('./cgmm_results/pred_f_CD_lang_train_0.0271_0.0004.npy')
 	# pred_f = np.load('pred_f_vae_train.npy')
 	# pred_f = loadmat('pred_f_spectral_language_grp.mat')
 	# pred_f = pred_f['pred_f']
+	diag_only_reg(vec_s, vec_f, use_train=True)
 	# print(pred_f.shape)
 	# import ipdb; ipdb.set_trace()
-	# # ''' uncomment if pred_f in shape n*r*r
-	# n,r,_ = pred_f.shape
-	# pred_f_ = np.zeros((n,int(r*(r-1)/2)))
+	''' uncomment if pred_f in shape n*r*r
+	n,r,_ = pred_f.shape
+	pred_f_ = np.zeros((n,int(r*(r-1)/2)))
 	
-	# p = 0
-	# for k in range(n):
-	# 	p = 0
-	# 	for i in range(r-1):
-	# 		for j in range(i+1,r):
-	# 			pred_f_[k,p] = pred_f[k,i,j]
-	# 			p += 1
-	# pred_f = pred_f_
+	p = 0
+	for k in range(n):
+		p = 0
+		for i in range(r-1):
+			for j in range(i+1,r):
+				pred_f_[k,p] = pred_f[k,i,j]
+				p += 1
+	pred_f = pred_f_
+	'''
 	# evaluate(vec_s, vec_f, pred_f, is_pred=True)
 	# '''

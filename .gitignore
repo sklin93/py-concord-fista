@@ -2,8 +2,6 @@ __pycache__
 *.c
 *.so
 build/
-fs_results/
-cgmm_results/
 *.DS_Store
 config.yaml
 log*
@@ -13,4 +11,5 @@ log*
 *_hc
 *_rnd
 .vscode/
+*result*
 # data-utility/

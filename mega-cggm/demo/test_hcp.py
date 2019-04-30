@@ -1,16 +1,21 @@
 import numpy as np
 import sys
-# Input: method used (CD or BCD)
-method = sys.argv[1]
+
+if len(sys.argv) == 2:
+	method = sys.argv[1]	#method used (CD or BCD)
+	suffix = ''
+elif len(sys.argv) == 3:
+	method = sys.argv[1]
+	suffix = sys.argv[2]	#e.g. '_lang_train_0.01'
 # Get Theta from file
-filepath = 'Thetafile_'+method
+filepath = 'results/Thetafile_'+method+suffix
 with open(filepath) as fp:
 	'''Get the first line, which contains result information'''
 	line = fp.readline()
 	info = [int(s) for s in line.strip().split(' ')]
 	Theta = np.zeros((info[0],info[1]))
 	nz_info = info[2]
-	print('non-zero entry number: ', nz_info)
+	print('Theta non-zero entry number: ', nz_info)
 	print('Theta shape: ', Theta.shape)
 	while line:
 		line = fp.readline()
@@ -20,14 +25,14 @@ with open(filepath) as fp:
 print(np.count_nonzero(Theta))
 
 # Get Lambda from file
-filepath = 'Lambdafile_'+method
+filepath = 'results/Lambdafile_'+method+suffix
 with open(filepath) as fp:
 	'''Get the first line, which contains result information'''
 	line = fp.readline()
 	info = [int(s) for s in line.strip().split(' ')]
 	Lambda = np.zeros((info[0],info[1]))
 	nz_info = info[2]
-	print('non-zero entry number: ', nz_info)
+	print('Lambda non-zero entry number: ', nz_info)
 	print('Lambda shape: ', Lambda.shape)
 	while line:
 		line = fp.readline()
@@ -36,9 +41,10 @@ with open(filepath) as fp:
 			Lambda[int(line_info[0]-1),int(line_info[1]-1)] = line_info[2]
 print(np.count_nonzero(Lambda))
 
-# Load X
+# Load X from Xfile
+# TODO: flexible filename
 X = []
-filepath = 'Xfile'
+filepath = 'data/Xfile_lang_test'
 with open(filepath) as fp:
 	line = fp.readline()
 	X.append([float(s) for s in line.strip().split(' ')])
@@ -80,4 +86,4 @@ def inv(A):
     return chol_inv(check_pd(A)[1])
 Y_pred = -np.dot(np.dot(inv(Lambda), Theta.T), X.T).T
 print(Y_pred.shape)
-np.save('pred_f_'+method+'.npy',Y_pred)
+np.save('pred_f_'+method+suffix+'.npy',Y_pred)
