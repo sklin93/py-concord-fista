@@ -11,6 +11,7 @@ from hcp_cc import data_prep
 from common_nonzero import load_omega, nz_share
 from common_2core import common_edges
 from vis import build_dict
+import matplotlib.pyplot as plt
 
 def evaluate(vec_s, vec_f, result, is_pred=False):
 	''' evaluate prediction based on p value and root mean squared error.
@@ -86,6 +87,24 @@ def rnd_omega_1(omega):
 			ctr += 1
 	return rnd_w
 
+def rnd_omega_2(omega):
+	'''create random omega with a same level sparsity, forcing diagonal to be nonzero'''
+	p = omega.shape[0]
+	rnd_w = np.zeros((p,p))
+	nz_num = np.count_nonzero(omega) - p
+	
+	idx = np.random.choice(p*p-p, nz_num, replace=False)
+	ctr = 0
+	for i in range(p):
+		for j in range(p):
+			if i == j:
+				rnd_w[i,j] = 1
+			else:
+				if ctr in idx:
+					rnd_w[i,j] = 1
+				ctr += 1
+	return rnd_w
+
 def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False, 
 			use_train=False, hard_constraint=True, check_constraint=False, task=""):
 	if use_train:
@@ -99,7 +118,7 @@ def regression(vec_s, vec_f, omega, fdir, lambd_values=None, use_rnd=False,
 	if use_rnd:
 		# compare with totally random omega
 		# '''
-		rnd_w = rnd_omega_1(omega)
+		rnd_w = rnd_omega_2(omega)
 		# '''
 		# compare with chosen common edges (appears in 2-core across 7 tasks)
 		'''
@@ -215,22 +234,38 @@ if __name__ == '__main__':
 	# hcp v2 train set ids
 	# subj_ids = ['195849', '147030', '123925', '160123', '120111', '189349', '136227', '172029', '250427', '171633', '159239', '198451', '157336', '156637', '131217', '118730', '181131', '178950', '121618', '133625', '205826', '211922', '157437', '201111', '155635', '133019', '118528', '164030', '214019', '135225', '136833', '205725', '185442', '147737', '208226', '144226', '135932', '164939', '133827', '151728', '205119', '161731', '172332', '186141', '177645', '245333', '165840', '146432', '214221', '135528', '210617', '143325', '122620', '140925', '187850', '137633', '178142', '173536', '166438', '192843', '148032', '231928', '255639', '146331', '167036', '204521', '250932', '163331', '180836', '123117', '221319', '158540', '173435', '199958', '172938', '199453', '141422', '138534', '120515', '162733', '256540', '217429', '211316', '180432', '130316', '161630', '224022', '196750', '196144', '138231', '177746', '205220', '162329', '154936', '208327', '165032', '126325', '141826', '176542', '139637', '175439', '190031', '127933', '180129', '191841', '128127', '181232', '148840', '169444', '210011', '182739', '201818', '191033', '192540', '162026', '152831', '212116', '163129', '251833', '214423', '127630', '204016', '118932', '139233', '173940', '149539', '179346', '201414', '203418', '126628', '187547', '131722', '130922', '140117', '194847', '150625', '180937', '191437', '189450', '211417', '148335', '119833', '151526', '185139', '130013', '128632', '162228', '161327', '159340', '217126', '131924', '140824', '191336', '140420', '239944', '124826', '178849', '182840', '154835', '124422', '197348', '193239', '194140', '172130', '160830', '233326', '129028']
 	vec_s, vec_f = data_prep(task, v1=False, subj_ids=None)
+
+	"""
+	# visualize data
+	def get_cmap(n, name='hsv'):
+		'''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+		RGB color; the keyword argument name must be a standard mpl colormap name.'''
+		return plt.cm.get_cmap(name, n)
+
+	cmap = get_cmap(10)
+	plt.figure()
+	# for i in range(vec_s.shape[1]):
+	for i in range(1):
+		plt.plot(vec_s[:,i],vec_f[:,i],'o',c=cmap(i))
+	plt.show()
+	"""
 	# vec_s, vec_f = data_prep(task)
 	# vec_s, vec_f = vec_s[:14], vec_f[:14]
 	
-	'''
+	# '''
 	# load omega
 	if task == 'resting':
-		omega = load_omega(task,mid='_',lam=0.1)
+		omega = load_omega(task,mid='_train_',lam=0.25)
 	else:
-		# omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-		omega = load_omega(task,mid='_er_train_hcp2_',lam=0.003)
+		omega = load_omega(task,mid='_er_train_hcp2_',lam=0.001)
 	# omega = rnd_omega_1(omega)
+	# omega = rnd_omega_2(omega)
 	# print(np.count_nonzero(omega))
+	# evaluate(vec_s[-6:,:], vec_f[-6:,:], omega) #tmp: for resting
 	# evaluate(vec_s, vec_f, omega)
 
+	# '''
 	fdir = 'fs_results/'
-	'''
 	regression(vec_s, vec_f, omega, fdir, use_rnd=False, \
 		use_train=True, lambd_values=lambd, task=task)
 	# '''
@@ -239,9 +274,9 @@ if __name__ == '__main__':
 	# pred_f = np.load('pred_f_vae_train.npy')
 	# pred_f = loadmat('pred_f_spectral_language_grp.mat')
 	# pred_f = pred_f['pred_f']
-	diag_only_reg(vec_s, vec_f, use_train=True)
+	# diag_only_reg(vec_s, vec_f, use_train=True)
 	# print(pred_f.shape)
-	# import ipdb; ipdb.set_trace()
+	
 	''' uncomment if pred_f in shape n*r*r
 	n,r,_ = pred_f.shape
 	pred_f_ = np.zeros((n,int(r*(r-1)/2)))

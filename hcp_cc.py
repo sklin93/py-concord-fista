@@ -6,6 +6,7 @@ from cc_fista import cc_fista, standardize, pseudol
 import time, yaml
 from scipy.linalg import norm
 from scipy.stats.stats import pearsonr
+from cvxpy import *
 
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
@@ -98,14 +99,20 @@ def s_f(task, lam, check_loss_only=False, split=False):
 		check_loss(vec,np.load(fdir+str(lam)+task+'.npy'))
 		return
 	fi = cc_fista(vec, lam, s_f=True, steptype=3, const_ss=0.8)
-	# fi = cc_fista(vec, lam, s_f=True)
+	# fi = cc_fista(vec, lam, s_f=True, steptype=2) # steptype2 blow
 	start = time.time()
 	omega = fi.infer()
 	print((time.time()-start)/60)
 	if split:
-		np.save(fdir+str(lam)+'_er_train_hcp2_'+task+'.npy',omega)
+		if task == 'resting':
+			np.save(fdir+str(lam)+'_train_'+task+'.npy',omega)
+		else:
+			np.save(fdir+str(lam)+'_er_train_hcp2_'+task+'.npy',omega)
 	else:
-		np.save(fdir+str(lam)+'_1stage_er2_'+task+'.npy',omega)
+		if task == 'resting':
+			np.save(fdir+str(lam)+'_'+task+'.npy',omega)
+		else:
+			np.save(fdir+str(lam)+'_er_hcp2_'+task+'.npy',omega)
 	print(np.count_nonzero(omega))
 	d = omega.shape[0]
 	print(np.count_nonzero(omega[:,:d]))
@@ -197,6 +204,8 @@ def reconstruct_err(task, filename, rnd_compare=False):
 	# print('average error percentage',tot_err_perct/n)
 	# return err
 
+"""Other packaged methods"""
+'''Using sgcrf package to solve the problem'''
 def sgcrf(task):
 	import sys
 	sys.path.insert(0,'/home/sikun/Documents/sgcrfpy/')
@@ -210,11 +219,17 @@ def sgcrf(task):
 	for k in range(vec_s.shape[0]):
 		print(pearsonr(pred_f[k],vec_f[k]))
 
+'''Using cvxpy to solve CONCORD objective function'''
+def cc_obj():
+	pass
+def cc_cvx(task):
+	vec_s, vec_f = data_prep(task, v1=False)
+
 if __name__ == '__main__':
 	task = sys.argv[1]
 
 	# f_only(task,lam=0.1)
-	s_f(task,lam=0.0008, check_loss_only=False, split=True) # use 0.0012 for normalization 2
+	s_f(task,lam=0.25, check_loss_only=False, split=True) # use 0.0012 for normalization 2
 	# s_f_direct(task,lam=0.08)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
