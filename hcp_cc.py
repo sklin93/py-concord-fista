@@ -220,16 +220,47 @@ def sgcrf(task):
 		print(pearsonr(pred_f[k],vec_f[k]))
 
 '''Using cvxpy to solve CONCORD objective function'''
-def cc_obj():
-	pass
-def cc_cvx(task):
+def regularizer(W, lam, pMat):
+	p = W.shape[0]
+	LambdaMat = lam*np.ones((p,p))
+	np.fill_diagonal(LambdaMat, 0)
+	if pMat is not None:
+		""" pMat: entry==0 means result here must be 0, 
+		entry==2 means results here must be nonzero,
+		entry==1 is a normal entry """
+		LambdaMat[pMat==0] *= 10000
+		LambdaMat[pMat==2] = 0
+	return sum(LambdaMat*W)
+	
+def cc_obj(S, W, lam, pMat):
+	# pseudol_ = -0.5*log_det(diag(diag(W)**2)) + 0.5*sum((W.T*(S@W)))
+	pseudol_ = -log_det(diag(diag(W)**2)) + trace(W@S@W)
+	return pseudol_ + regularizer(W, lam, pMat)
+
+def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
 	vec_s, vec_f = data_prep(task, v1=False)
+	if split:
+		train_num = int(vec_s.shape[0]*0.8)
+		vec_s = vec_s[:train_num,:]
+		vec_f = vec_f[:train_num,:]
+	if s_f:
+		vec = np.concatenate((vec_f,vec_s), axis=1)
+	else:
+		vec = vec_f
+	print('Input vector shape: ', vec.shape)
+	S = standardize(vec)
+	p = S.shape[0]
+	W = Variable((p,p), PSD=True)
+	prob = Problem(Minimize(cc_obj(S, W, lam, pMat)))
+	# import ipdb; ipdb.set_trace()
+	prob.solve()
 
 if __name__ == '__main__':
 	task = sys.argv[1]
 
 	# f_only(task,lam=0.1)
-	s_f(task,lam=0.25, check_loss_only=False, split=True) # use 0.0012 for normalization 2
+	# s_f(task,lam=0.25, check_loss_only=False, split=True) # use 0.0012 for normalization 2
 	# s_f_direct(task,lam=0.08)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
+	cc_cvx(task, lam=0.25, split=True)
