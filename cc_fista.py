@@ -314,7 +314,6 @@ def test():
 	print('non-overlap nonzero entry count: ', np.count_nonzero(omega-invcov))
 
 def test_synthetic():
-
 	# load data
 	syndata_file = 'data-utility/syn.pkl'
 	if not os.path.isfile(syndata_file):
@@ -326,11 +325,11 @@ def test_synthetic():
 		print("Loaded ... Groundtruth Omega:")
 		print(Omg)
 	# infer
-	fi = cc_fista(D,0.5,v=True, maxit=300, steptype=3, const_ss=0.1)
+	fi = cc_fista(D,0.175,v=True, maxit=300, steptype=3, const_ss=0.1)
 	invcov = fi.infer()
 	# output
-	print('omega:\n',Omg)
-	print('inferred invcov:\n',invcov)
+	print('omega:\n', np.round(Omg,3))
+	print('inferred invcov:\n', np.round(invcov,3))
 
 
 if __name__ == '__main__':

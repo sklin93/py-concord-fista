@@ -230,30 +230,41 @@ def regularizer(W, lam, pMat):
 		entry==1 is a normal entry """
 		LambdaMat[pMat==0] *= 10000
 		LambdaMat[pMat==2] = 0
-	return sum(LambdaMat*W)
+	return norm(multiply(LambdaMat, W), 1)
 	
 def cc_obj(S, W, lam, pMat):
-	# pseudol_ = -0.5*log_det(diag(diag(W)**2)) + 0.5*sum((W.T*(S@W)))
-	pseudol_ = -log_det(diag(diag(W)**2)) + trace(W@S@W)
+	# pseudol_ = -0.5*log_det(diag(diag(W)**2)) + 0.5*sum((W.T*(S@W))) (0.5*trace(W@S@W))
+	pseudol_ = -sum(log(diag(W))) + 0.5*sum([quad_form(W[i,:], S) for i in range(S.shape[0])])
 	return pseudol_ + regularizer(W, lam, pMat)
 
 def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
-	vec_s, vec_f = data_prep(task, v1=False)
-	if split:
-		train_num = int(vec_s.shape[0]*0.8)
-		vec_s = vec_s[:train_num,:]
-		vec_f = vec_f[:train_num,:]
-	if s_f:
-		vec = np.concatenate((vec_f,vec_s), axis=1)
+	if task == 'syn':
+		# load syn data
+		with open('./data-utility/syn.pkl', 'rb') as f:
+			(Omg, Sig, vec, pMat, num_var, num_smp) = pickle.load(f)
 	else:
-		vec = vec_f
+		# load MRI data
+		vec_s, vec_f = data_prep(task, v1=False)
+		if split:
+			train_num = int(vec_s.shape[0]*0.8)
+			vec_s = vec_s[:train_num,:]
+			vec_f = vec_f[:train_num,:]
+		if s_f:
+			vec = np.concatenate((vec_f,vec_s), axis=1)
+		else:
+			vec = vec_f
 	print('Input vector shape: ', vec.shape)
 	S = standardize(vec)
 	p = S.shape[0]
-	W = Variable((p,p), PSD=True)
+	W = Variable((p,p))
 	prob = Problem(Minimize(cc_obj(S, W, lam, pMat)))
-	# import ipdb; ipdb.set_trace()
-	prob.solve()
+	prob.solve(CVXOPT, verbose=True)
+	result = W.value
+	result[np.where(result < 1e-5)] = 0
+	if task == 'syn':
+		print('omega:\n', np.round(Omg,3))
+	print('cvxpy result:\n', np.round(result,3))
+	print(prob.value)
 
 if __name__ == '__main__':
 	task = sys.argv[1]
@@ -263,4 +274,4 @@ if __name__ == '__main__':
 	# s_f_direct(task,lam=0.08)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
-	cc_cvx(task, lam=0.25, split=True)
+	cc_cvx(task=task, lam=0.01, split=True)
