@@ -2,7 +2,8 @@
 - login to hcp-store.bic.ucsb.edu
 - Data directory: /work/code/fs125 
 
-## Preprocessing code: run ./preproc_tfmri.sh  under directory /work/gitrepo/py-concord-fista/preproc
+## Preprocessing code: ./preproc_tfmri.sh
+run ./preproc_tfmri.sh  under directory /work/gitrepo/py-concord-fista/preproc
 - Grammar: ./preproc_tfmri.sh <path_to_data> <task_name> <atlas_name> <download_flag> <resampling_flag> <smoothing_flag> <timeseries_extraction_flag> <overwrite_flag>
 - path_to_data: We use /work/code/fs125 without /  in the end. 
 - Remember to write subject IDs into <path_to_data>/test_fs125_subject_list.txt before running the script. 
@@ -17,8 +18,8 @@
 - number of parallel threads: In line 258 of preproc_tfmri.sh, change --jobs 8 to an appropriate number (not too large to kill part of threads, for example 15).          
 - parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
              > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
-- Outputs: 
-Each subject has a sub-directory under data directory /work/code/fs125 . Example:
+- Outputs: Each subject has a sub-directory under data directory /work/code/fs125 . Example:
+```
 --|100307
 ------|tfMRI
 ------------|tfMRI_LANGUAGE_LR.nii.gz (original image)
@@ -38,10 +39,11 @@ Each subject has a sub-directory under data directory /work/code/fs125 . Example
 ------------------------------|timeseries_mean.ts
 ------------------------------|corrmat.fc
 ------------------------------|extracted_ts.tar.gz
-log file <path_to_data>/test_fs125_subject_list_<time_string>.txt records downloaded images for the current run.
-log file <path_to_data>/downloaded_subjects_holdon.log keeps recording successfully downloaded subject images for all runs unless it gets deleted.
+```
+- log file <path_to_data>/test_fs125_subject_list_<time_string>.txt records downloaded images for the current run.
+- log file <path_to_data>/downloaded_subjects_holdon.log keeps recording successfully downloaded subject images for all runs unless it gets deleted.
 
-## Aggregate correlation matrices into a single pkl file: run ./aggregate_corrmat.py  under /work/gitrepo/py-concord-fista/preproc
+Aggregate correlation matrices into a single pkl file: run ./aggregate_corrmat.py  under /work/gitrepo/py-concord-fista/preproc
 Grammar: python ./aggregate_corrmat.py <path_to_data> <image_full_label> <atlas_name>
 path_to_data: We use /work/code/fs125 
 image_full_label: Should be consistent with subdir names under <path_to_data>/<subject_ID>/timeseries, Example: tfMRI_LANGUAGE_125mm_RL. 
