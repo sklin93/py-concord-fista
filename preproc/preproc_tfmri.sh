@@ -48,6 +48,7 @@ else
 	echo "Existing subject list found: $WORK_DIR/$SUBJECT_FILE_NAME"
 fi
 
+cp -r $WORK_DIR/$SUBJECT_FILE_NAME $WORK_DIR/"test_fs125_subject_list_${time_start_all_steps}.txt"
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -56,8 +57,8 @@ fi
 
 fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
 FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
-LOG_LIST=$WORK_DIR/"processed_subject_list.log"
-SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
+LOG_LIST=$WORK_DIR/"processed_subject_list_${time_start_all_steps}.log"
+SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list_${time_start_all_steps}.txt"
 
 if $FLAG_DOWNLOAD; then
     if [ -f $SUBJECT_LIST ]; then rm $SUBJECT_LIST; fi 
