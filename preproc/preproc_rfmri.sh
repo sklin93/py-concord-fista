@@ -1,6 +1,5 @@
 # Usage exapmles:
-# ./preproc_rfMRI.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33 false false false true
-# ./preproc_rfMRI.sh /work/code/fs125 LANGUAGE ROIv_scale33 false false false true
+# ./preproc_rfMRI.sh /work/code/fs125 LANGUAGE ROIv_scale33 true true false true true
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
