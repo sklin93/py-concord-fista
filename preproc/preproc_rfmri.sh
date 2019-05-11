@@ -55,8 +55,8 @@ fi
 
 fMRI_FILE_NAME="rfMRI_${fMRI_TASK}"
 FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
-LOG_LIST=$WORK_DIR/"processed_subject_list.log"
-SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
+LOG_LIST=$WORK_DIR/"downloaded_subjects_holdon.log"
+SUBJECT_LIST=$WORK_DIR/"downloaded_subjects.txt"
 
 if $FLAG_DOWNLOAD; then
     if [ -f $SUBJECT_LIST ]; then rm $SUBJECT_LIST; fi 
@@ -248,7 +248,7 @@ if $FLAG_TSEXTRACT; then
                 echo "Extraction started, input: $rfMRI_final"
                 mkdir -p $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                 time_start="$(date -u +%s)"
-                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
+                parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
                     > $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
