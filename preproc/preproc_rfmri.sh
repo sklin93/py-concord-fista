@@ -28,6 +28,7 @@ FLAG_DOWNLOAD="$4"
 FLAG_UPSAMPING="$5"
 FLAG_SMOOTHING="$6"
 FLAG_TSEXTRACT="$7"
+FLAG_OVERWRITE="$8"
 
 time_start_all_steps="$(date -u +%s)"
 
@@ -244,7 +245,8 @@ if $FLAG_TSEXTRACT; then
                 rfMRI_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
             fi
             # Extract timeseries from rfMRI image for each ROI
-            if [ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+            if [ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ] || $FLAG_OVERWRITE; then
+                if $FLAG_OVERWRITE; then rm -rf $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION; fi
                 echo "Extraction started, input: $rfMRI_final"
                 mkdir -p $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                 time_start="$(date -u +%s)"
@@ -259,7 +261,8 @@ if $FLAG_TSEXTRACT; then
             fi
             # Calculate the averaged timeseries for each ROI
             rfMRI_ts_mean="timeseries_mean.ts"
-            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ]; then
+            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ] || $FLAG_OVERWRITE; then
+                if $FLAG_OVERWRITE; then rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean; fi
                 echo "Averaging timeseries started."
                 python ./average_timeseries.py $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $rfMRI_ts_mean
                 echo "Averaging timeseries finished, output: \
@@ -270,7 +273,8 @@ if $FLAG_TSEXTRACT; then
             fi
             # Compute the correlation
             rfMRI_corrmat="corrmat.fc"
-            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ]; then
+            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ] || $FLAG_OVERWRITE; then
+                if $FLAG_OVERWRITE; then rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat; fi
                 echo "Connecitivity matrix construction started."
                 python ./create_corrmat.py $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
                     $rfMRI_ts_mean $rfMRI_corrmat
