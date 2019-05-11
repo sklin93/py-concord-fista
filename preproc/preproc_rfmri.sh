@@ -245,7 +245,7 @@ if $FLAG_TSEXTRACT; then
                 rfMRI_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
             fi
             # Extract timeseries from rfMRI image for each ROI
-            if [ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ] || $FLAG_OVERWRITE; then
+            if [[ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]] || [[ $FLAG_OVERWRITE ]]; then
                 if $FLAG_OVERWRITE; then 
                     rm -rf $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                     echo "Removing existing timeseries dir, due to FLAG_OVERWRITE turned on ..."
@@ -264,7 +264,7 @@ if $FLAG_TSEXTRACT; then
             fi
             # Calculate the averaged timeseries for each ROI
             rfMRI_ts_mean="timeseries_mean.ts"
-            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ] || $FLAG_OVERWRITE; then
+            if [[ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ]] || [[ $FLAG_OVERWRITE ]]; then
                 if $FLAG_OVERWRITE; then 
                     rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean
                     echo "Removing existing timeseries_mean.ts, due to FLAG_OVERWRITE turned on ..."
@@ -279,7 +279,7 @@ if $FLAG_TSEXTRACT; then
             fi
             # Compute the correlation
             rfMRI_corrmat="corrmat.fc"
-            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ] || $FLAG_OVERWRITE; then
+            if [[ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ]] || [[ $FLAG_OVERWRITE ]]; then
                 if $FLAG_OVERWRITE; then 
                     rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat
                     echo "Removing existing corrmat, due to FLAG_OVERWRITE turned on ..."
