@@ -267,10 +267,6 @@ if $FLAG_TSEXTRACT; then
             # Calculate the averaged timeseries for each ROI
             tfmri_ts_mean="timeseries_mean.ts"
             if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean ] || $FLAG_OVERWRITE; then
-                if $FLAG_OVERWRITE; then 
-                    rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean
-                    echo "Removing existing timeseries_mean.ts, due to FLAG_OVERWRITE turned on ..."
-                fi
                 echo "Averaging timeseries started."
                 python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
                 echo "Averaging timeseries finished, output: \
