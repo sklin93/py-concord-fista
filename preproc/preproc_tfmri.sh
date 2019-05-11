@@ -42,8 +42,8 @@ SUBJECT_FILE_NAME="test_fs125_subject_list.txt"
 if [ ! -f $WORK_DIR/$SUBJECT_FILE_NAME ]; then
 	scp ./get_subject_list.sh $DSI_SERVER_NAME:~
 	ssh $DSI_SERVER_NAME "chmod +x *.sh"
-    ssh $DSI_SERVER_NAME "touch $SUBJECT_FILE"
-	ssh $DSI_SERVER_NAME "./get_subject_list.sh $SUBJECT_FILE"
+    ssh $DSI_SERVER_NAME "touch $SUBJECT_FILE_NAME"
+	ssh $DSI_SERVER_NAME "./get_subject_list.sh $SUBJECT_FILE_NAME"
 	scp $DSI_SERVER_NAME:~/$SUBJECT_FILE_NAME $WORK_DIR/
 else
 	echo "Existing subject list found: $WORK_DIR/$SUBJECT_FILE_NAME"
