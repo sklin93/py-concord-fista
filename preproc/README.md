@@ -26,25 +26,25 @@ parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
     - log file `<path_to_data>/downloaded_subjects_holdon.log` keeps recording successfully downloaded subject images for all runs unless it gets deleted.
     - Each subject has a sub-directory under data directory `/work/code/fs125` . Example:
 ```
---|100307
-------|tfMRI
-------------|tfMRI_LANGUAGE_LR.nii.gz (original image)
-------------|tfMRI_LANGUAGE_RL.nii.gz
-------------|tfMRI_LANGUAGE_125mm_LR.nii.gz (upsampled image)
-------------|tfMRI_LANGUAGE_125mm_RL.nii.gz
-------|timeseries
-------------|tfMRI_LANGUAGE_125mm_LR
-------------------|Lausanne2008
-------------------------|ROI_scale33
-------------------------------|timeseries_mean.ts (extracted mean time-series per ROI)
-------------------------------|corrmat.fc (correlation matrix)
-------------------------------|extracted_ts.tar.gz (archived package of meta-data)
-------------|tfMRI_LANGUAGE_125mm_RL
-------------------|Lausanne2008
-------------------------|ROI_scale33
-------------------------------|timeseries_mean.ts
-------------------------------|corrmat.fc
-------------------------------|extracted_ts.tar.gz
+  |100307
+      |tfMRI
+            |tfMRI_LANGUAGE_LR.nii.gz (original image)
+            |tfMRI_LANGUAGE_RL.nii.gz
+            |tfMRI_LANGUAGE_125mm_LR.nii.gz (upsampled image)
+            |tfMRI_LANGUAGE_125mm_RL.nii.gz
+      |timeseries
+            |tfMRI_LANGUAGE_125mm_LR
+                  |Lausanne2008
+                        |ROI_scale33
+                              |timeseries_mean.ts (extracted mean time-series per ROI)
+                              |corrmat.fc (correlation matrix)
+                              |extracted_ts.tar.gz (archived package of meta-data)
+            |tfMRI_LANGUAGE_125mm_RL
+                  |Lausanne2008
+                        |ROI_scale33
+                              |timeseries_mean.ts
+                              |corrmat.fc
+                              |extracted_ts.tar.gz
 ```
 
 
