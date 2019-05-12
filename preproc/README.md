@@ -51,7 +51,7 @@ parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
 ## Aggregate correlation matrices into a single pkl file
 * **Run** `./aggregate_corrmat.py`  under `/work/gitrepo/py-concord-fista/preproc`
 * **Grammar**: ``python ./aggregate_corrmat.py <path_to_data> <image_full_label> <atlas_name>``
--- `path_to_data`: We use `/work/code/fs125` 
--- `image_full_label`: Should be consistent with subdir names under `<path_to_data>/<subject_ID>/timeseries`, Example: `tfMRI_LANGUAGE_125mm_RL`. 
--- `atlas_name`: Options could be `ROI_scale33` (used in HCP-LANGUAGE preprocessing), `ROIv_scale33` (a dilated version). Other resolutions could be considered as well.
+    - `path_to_data`: We use `/work/code/fs125` 
+    - `image_full_label`: Should be consistent with subdir names under `<path_to_data>/<subject_ID>/timeseries`, Example: `tfMRI_LANGUAGE_125mm_RL`. 
+    - `atlas_name`: Options could be `ROI_scale33` (used in HCP-LANGUAGE preprocessing), `ROIv_scale33` (a dilated version). Other resolutions could be considered as well.
 * **Output**:  `<path_to_data> /aggregated_corrmat_tfMRI_<task_name>_125mm_LR_<atlas_name>.p`
