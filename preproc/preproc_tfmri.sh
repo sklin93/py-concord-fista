@@ -40,6 +40,7 @@ SUBJECT_FILE_NAME="test_fs125_subject_list.txt"
 
 # check if the list already exits
 if [ ! -f $WORK_DIR/$SUBJECT_FILE_NAME ]; then
+    echo "Fetching full subject list from salinas ..."
 	scp ./get_subject_list.sh $DSI_SERVER_NAME:~
 	ssh $DSI_SERVER_NAME "chmod +x *.sh"
     ssh $DSI_SERVER_NAME "touch $SUBJECT_FILE_NAME"
