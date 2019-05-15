@@ -28,7 +28,7 @@ FLAG_DOWNLOAD="$4"
 FLAG_UPSAMPING="$5"
 FLAG_SMOOTHING="$6"
 FLAG_TSEXTRACT="$7"
-
+FLAG_OVERWRITE="$8"
 
 time_start_all_steps="$(date -u +%s)"
 
@@ -40,14 +40,17 @@ SUBJECT_FILE_NAME="test_fs125_subject_list.txt"
 
 # check if the list already exits
 if [ ! -f $WORK_DIR/$SUBJECT_FILE_NAME ]; then
+    echo "Fetching full subject list from salinas ..."
 	scp ./get_subject_list.sh $DSI_SERVER_NAME:~
 	ssh $DSI_SERVER_NAME "chmod +x *.sh"
-	ssh $DSI_SERVER_NAME "./get_subject_list.sh $SUBJECT_FILE"
+    ssh $DSI_SERVER_NAME "touch $SUBJECT_FILE_NAME"
+	ssh $DSI_SERVER_NAME "./get_subject_list.sh $SUBJECT_FILE_NAME"
 	scp $DSI_SERVER_NAME:~/$SUBJECT_FILE_NAME $WORK_DIR/
 else
 	echo "Existing subject list found: $WORK_DIR/$SUBJECT_FILE_NAME"
 fi
 
+cp -r $WORK_DIR/$SUBJECT_FILE_NAME $WORK_DIR/"test_fs125_subject_list_${time_start_all_steps}.txt"
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -56,8 +59,8 @@ fi
 
 fMRI_FILE_NAME="tfMRI_${fMRI_TASK}"
 FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
-LOG_LIST=$WORK_DIR/"processed_subject_list.log"
-SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
+LOG_LIST=$WORK_DIR/"downloaded_subjects_holdon.log"
+SUBJECT_LIST=$WORK_DIR/"downloaded_subjects.txt"
 
 if $FLAG_DOWNLOAD; then
     if [ -f $SUBJECT_LIST ]; then rm $SUBJECT_LIST; fi 
@@ -245,11 +248,15 @@ if $FLAG_TSEXTRACT; then
                 tfmri_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
             fi
             # Extract timeseries from tfMRI image for each ROI
-            if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+            if [ ! -d $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ] || $FLAG_OVERWRITE ; then
+                if $FLAG_OVERWRITE; then 
+                    rm -rf $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
+                    echo "Removing existing timeseries dir, due to FLAG_OVERWRITE turned on ..."
+                fi
                 echo "Extraction started, input: $tfmri_final"
                 mkdir -p $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                 time_start="$(date -u +%s)"
-                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
+                parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $tfMRI_final \
                     > $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
@@ -260,7 +267,7 @@ if $FLAG_TSEXTRACT; then
             fi
             # Calculate the averaged timeseries for each ROI
             tfmri_ts_mean="timeseries_mean.ts"
-            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean ]; then
+            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_ts_mean ] || $FLAG_OVERWRITE; then
                 echo "Averaging timeseries started."
                 python ./average_timeseries.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $tfmri_ts_mean
                 echo "Averaging timeseries finished, output: \
@@ -271,7 +278,11 @@ if $FLAG_TSEXTRACT; then
             fi
             # Compute the correlation
             tfmri_corrmat="corrmat.fc"
-            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat ]; then
+            if [ ! -f $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$tfmri_corrmat ] || $FLAG_OVERWRITE; then
+                if $FLAG_OVERWRITE; then 
+                    rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat
+                    echo "Removing existing corrmat, due to FLAG_OVERWRITE turned on ..."
+                fi
                 echo "Connecitivity matrix construction started."
                 python ./create_corrmat.py $tfmri_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
                     $tfmri_ts_mean $tfmri_corrmat

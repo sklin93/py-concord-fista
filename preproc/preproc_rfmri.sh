@@ -1,6 +1,5 @@
 # Usage exapmles:
-# ./preproc_rfMRI.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33 false false false true
-# ./preproc_rfMRI.sh /work/code/fs125 LANGUAGE ROIv_scale33 false false false true
+# ./preproc_rfMRI.sh /work/code/fs125 LANGUAGE ROIv_scale33 true true false true true
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
@@ -28,6 +27,7 @@ FLAG_DOWNLOAD="$4"
 FLAG_UPSAMPING="$5"
 FLAG_SMOOTHING="$6"
 FLAG_TSEXTRACT="$7"
+FLAG_OVERWRITE="$8"
 
 time_start_all_steps="$(date -u +%s)"
 
@@ -55,8 +55,8 @@ fi
 
 fMRI_FILE_NAME="rfMRI_${fMRI_TASK}"
 FULL_SUBJECT_LIST=$WORK_DIR/$SUBJECT_FILE_NAME
-LOG_LIST=$WORK_DIR/"processed_subject_list.log"
-SUBJECT_LIST=$WORK_DIR/"downloaded_subject_list.txt"
+LOG_LIST=$WORK_DIR/"downloaded_subjects_holdon.log"
+SUBJECT_LIST=$WORK_DIR/"downloaded_subjects.txt"
 
 if $FLAG_DOWNLOAD; then
     if [ -f $SUBJECT_LIST ]; then rm $SUBJECT_LIST; fi 
@@ -244,11 +244,15 @@ if $FLAG_TSEXTRACT; then
                 rfMRI_ts_dir=$WORK_DIR/$subject/timeseries/${fMRI_FILE_NAME}_125mm_${phase}
             fi
             # Extract timeseries from rfMRI image for each ROI
-            if [ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]; then
+            if [[ ! -d $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION ]] || [[ $FLAG_OVERWRITE ]]; then
+                if $FLAG_OVERWRITE; then 
+                    rm -rf $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
+                    echo "Removing existing timeseries dir, due to FLAG_OVERWRITE turned on ..."
+                fi
                 echo "Extraction started, input: $rfMRI_final"
                 mkdir -p $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                 time_start="$(date -u +%s)"
-                parallel --jobs 15 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
+                parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
                     > $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
@@ -259,7 +263,11 @@ if $FLAG_TSEXTRACT; then
             fi
             # Calculate the averaged timeseries for each ROI
             rfMRI_ts_mean="timeseries_mean.ts"
-            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ]; then
+            if [[ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean ]] || [[ $FLAG_OVERWRITE ]]; then
+                if $FLAG_OVERWRITE; then 
+                    rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_ts_mean
+                    echo "Removing existing timeseries_mean.ts, due to FLAG_OVERWRITE turned on ..."
+                fi
                 echo "Averaging timeseries started."
                 python ./average_timeseries.py $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION $rfMRI_ts_mean
                 echo "Averaging timeseries finished, output: \
@@ -270,7 +278,11 @@ if $FLAG_TSEXTRACT; then
             fi
             # Compute the correlation
             rfMRI_corrmat="corrmat.fc"
-            if [ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ]; then
+            if [[ ! -f $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat ]] || [[ $FLAG_OVERWRITE ]]; then
+                if $FLAG_OVERWRITE; then 
+                    rm $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/$rfMRI_corrmat
+                    echo "Removing existing corrmat, due to FLAG_OVERWRITE turned on ..."
+                fi
                 echo "Connecitivity matrix construction started."
                 python ./create_corrmat.py $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION \
                     $rfMRI_ts_mean $rfMRI_corrmat
