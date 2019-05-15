@@ -13,4 +13,5 @@ log*
 .vscode/
 *result*
 *odt*
+preproc/log1
 # data-utility/
