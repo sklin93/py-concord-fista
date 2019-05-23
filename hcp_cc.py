@@ -239,7 +239,7 @@ def sgcrf(task):
 		print(pearsonr(pred_f[k],vec_f[k]))
 
 '''Using cvxpy to solve CONCORD objective function'''
-def regularizer(W, lam, pMat):
+def cvx_regularizer(W, lam, pMat):
 	p = W.shape[0]
 	LambdaMat = lam*np.ones((p,p))
 	np.fill_diagonal(LambdaMat, 0)
@@ -254,7 +254,7 @@ def regularizer(W, lam, pMat):
 def cc_obj(S, W, lam, pMat):
 	# pseudol_ = -0.5*log_det(diag(diag(W)**2)) + 0.5*sum((W.T*(S@W))) (0.5*trace(W@S@W))
 	pseudol_ = -sum(log(diag(W))) + 0.5*sum([quad_form(W[i,:], S) for i in range(S.shape[0])])
-	return pseudol_ + regularizer(W, lam, pMat)
+	return pseudol_ + cvx_regularizer(W, lam, pMat)
 
 def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
 	if task == 'syn':
@@ -285,12 +285,46 @@ def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
 	print('cvxpy result:\n', np.round(result,3))
 	print(prob.value)
 
+'''Direct regression on each F edges'''
+# import cvxpy as cp
+# def loss_fn(X, Y, beta):
+# 	return cp.norm(cp.matmul(X, beta) - Y, 2)**2
+# def regularizer(beta):
+# 	return cp.norm(beta, 1)
+# def objective_fn(X, Y, beta, lambd):
+#     return loss_fn(X, Y, beta) + lambd * regularizer(beta)
+# def mse(X, Y, beta):
+#     return (1.0 / X.shape[0]) * loss_fn(X, Y, beta).value
+
+def direct_reg(task, split=False):
+	from tqdm import tqdm
+	from sklearn import linear_model
+	vec_s, vec_f = data_prep(task, v1=False)
+	if split:
+		train_num = int(vec_s.shape[0]*0.8)
+		vec_s = vec_s[:train_num, :]
+		vec_f = vec_f[:train_num, :]
+	n, p = vec_s.shape
+	w = []
+	for i in tqdm(range(p)):
+		cur_f = vec_f[:, i]
+		# beta = cp.Variable(p)
+		# problem = cp.Problem(cp.Minimize(objective_fn(vec_s, cur_f, beta, 100000)))
+		# problem.solve(CVXOPT)
+		clf = linear_model.Lasso(alpha=1e-7)
+		clf.fit(vec_s, cur_f)
+		w.append(clf.coef_)
+		# print(np.count_nonzero(clf.coef_))
+	import ipdb; ipdb.set_trace()
+
+
 if __name__ == '__main__':
 	task = sys.argv[1]
 
 	# f_only(task,lam=0.1)
 	# s_f(task, lam=0.00009, check_loss_only=False, split=True)
-	s_f_direct(task, lam=0.00009, split=True)
+	# s_f_direct(task, lam=0.00009, split=True)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
 	# cc_cvx(task=task, lam=0.01, split=True)
+	direct_reg(task)

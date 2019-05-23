@@ -12,12 +12,19 @@ def load_omega(task,fdir='fs_results/',mid='_',lam=0.0009,vis=True):
     # omega[omega!=0]=1
     return omega
  
-def nz_share(omega_i,omega_j):
+def nz_share(omega_i, omega_j, verbose=True):
     '''shared nonzero entry percentage, except diagonal'''
+    omega_i[omega_i!=0] = 1
+    omega_j[omega_j!=0] = 1
     d, _ = omega_i.shape
     nz_i = np.count_nonzero(omega_i) - d
     nz_j = np.count_nonzero(omega_j) - d
     shared = (nz_i+nz_j-np.count_nonzero(omega_i-omega_j))/2
+    if verbose:
+        print('nonzero entry number 1: ', nz_i)
+        print('nonzero entry number 2: ', nz_j)
+        print('shared ratio 1, 2 and shared entry number: ', 
+                shared/nz_i, shared/nz_j, shared)
     return shared/nz_i, shared/nz_j, shared
  
 def edge_share():
@@ -40,13 +47,13 @@ def main():
     print(ratio_mat)
 
 if __name__ == '__main__':
-    main()
+    # main()
     '''
     import pickle
     with open('data-utility/syn_sf.pkl', 'rb') as f:
-        omega1 = pickle.load(f)['W']
+        omega1 = pickle.load(f)['W'].T
         print(np.count_nonzero(omega1))
     omega2 = load_omega('syn_sf',mid='_train_',lam=0.00009)
-    tmp1, tmp2, shared = nz_share(omega1, omega2)
-    print(tmp1, tmp2, shared)
+    # omega2 = np.load('fs_results/dir_reg_syn_sf.npy')
+    nz_share(omega1, omega2)
     '''
