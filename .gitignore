@@ -13,4 +13,7 @@ log*
 .vscode/
 *result*
 *odt*
+preproc/log1
 # data-utility/
+*file_syn_sf_*
+data-utility/syn_sf.pkl

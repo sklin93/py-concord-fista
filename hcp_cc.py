@@ -14,7 +14,13 @@ with open('config.yaml') as info:
 fdir = 'fs_results/'
 
 def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
-	if task=='resting':
+	if task == 'syn_sf':
+		with open('data-utility/syn_sf.pkl','rb') as f: 
+			data = pickle.load(f)
+			vec_s = data['S']
+			vec_f = data['F']
+
+	elif task == 'resting':
 		dataMat = loadmat(info_dict['data_dir_Bassette']+info_dict['Bassette_file'])
 		sMat = dataMat['Ss']
 		fMat = dataMat['Fs']
@@ -50,17 +56,18 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 			s = np.stack(s, axis=2)
 			f = np.stack(f, axis=2)
 
-	d,_,n = s.shape
-	vec_s = []
-	vec_f = []
-	# p = 0
-	for i in range(d-1):
-		for j in range(i+1,d):
-			vec_s.append(s[i,j])
-			vec_f.append(f[i,j])
-			# p = p+1
-	vec_s = np.transpose(np.asarray(vec_s))
-	vec_f = np.transpose(np.asarray(vec_f))
+	if task != 'syn_sf':
+		d,_,n = s.shape
+		vec_s = []
+		vec_f = []
+		# p = 0
+		for i in range(d-1):
+			for j in range(i+1,d):
+				vec_s.append(s[i,j])
+				vec_f.append(f[i,j])
+				# p = p+1
+		vec_s = np.transpose(np.asarray(vec_s))
+		vec_f = np.transpose(np.asarray(vec_f))
 	if normalize_s:
 		vec_s -= vec_s.min()
 		vec_s /= vec_s.max()
@@ -68,11 +75,21 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 	return vec_s, vec_f
 
 def s_f_pMat(d): # d is p/2
+	'''
+	# mask out SS and FF (only keep diagonal)
 	tmp_14 = np.identity(d)*2
 	tmp_23 = np.ones((d,d))
 	np.fill_diagonal(tmp_23, 2)
 	up = np.concatenate((tmp_14,tmp_23),axis=1)
 	low = np.concatenate((tmp_23,tmp_14),axis=1)
+	'''
+	# mask out SS (only keep diagonal)
+	tmp_1 = np.ones((d,d))
+	np.fill_diagonal(tmp_1, 2)
+	tmp_23 = np.ones((d,d))
+	tmp_4 = np.identity(d)*2
+	up = np.concatenate((tmp_1,tmp_23),axis=1)
+	low = np.concatenate((tmp_23,tmp_4),axis=1)
 	return np.concatenate((up,low),axis=0)
 
 def f_only(task, lam):
@@ -104,12 +121,12 @@ def s_f(task, lam, check_loss_only=False, split=False):
 	omega = fi.infer()
 	print((time.time()-start)/60)
 	if split:
-		if task == 'resting':
+		if task == 'resting' or task == 'syn_sf':
 			np.save(fdir+str(lam)+'_train_'+task+'.npy',omega)
 		else:
 			np.save(fdir+str(lam)+'_er_train_hcp2_'+task+'.npy',omega)
 	else:
-		if task == 'resting':
+		if task == 'resting' or task == 'syn_sf':
 			np.save(fdir+str(lam)+'_'+task+'.npy',omega)
 		else:
 			np.save(fdir+str(lam)+'_er_hcp2_'+task+'.npy',omega)
@@ -120,11 +137,14 @@ def s_f(task, lam, check_loss_only=False, split=False):
 	print(np.count_nonzero(omega[:,:d].diagonal()))
 	print(np.count_nonzero(omega[:,d:].diagonal()))
 	print(fi.loss())
-	# import ipdb; ipdb.set_trace()
 
-def s_f_direct(task,lam):
+def s_f_direct(task, lam, split=False):
 	'''directly perform concord on p*p matrix instead of d*p'''
-	vec_s, vec_f = data_prep(task)
+	vec_s, vec_f = data_prep(task, v1=False)
+	if split:
+		train_num = int(vec_s.shape[0]*0.8)
+		vec_s = vec_s[:train_num,:]
+		vec_f = vec_f[:train_num,:]
 	vec = np.concatenate((vec_f,vec_s), axis=1)
 	print('Input vector shape: ', vec.shape)
 	pMat = s_f_pMat(int(vec.shape[1]/2))
@@ -158,7 +178,6 @@ def reconstruct_err(task, filename, rnd_compare=False):
 	print(omega.min(),omega.mean(),omega.max())
 	print(omega.shape)
 	# rho = np.zeros(omega.shape)
-	# import ipdb; ipdb.set_trace()
 	# for i in range(d):
 	# 	for j in range(d):
 	# 		if i==j:
@@ -270,8 +289,8 @@ if __name__ == '__main__':
 	task = sys.argv[1]
 
 	# f_only(task,lam=0.1)
-	# s_f(task,lam=0.25, check_loss_only=False, split=True) # use 0.0012 for normalization 2
-	# s_f_direct(task,lam=0.08)
+	# s_f(task, lam=0.00009, check_loss_only=False, split=True)
+	s_f_direct(task, lam=0.00009, split=True)
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
-	cc_cvx(task=task, lam=0.01, split=True)
+	# cc_cvx(task=task, lam=0.01, split=True)

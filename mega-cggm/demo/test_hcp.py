@@ -44,7 +44,7 @@ print(np.count_nonzero(Lambda))
 # Load X from Xfile
 # TODO: flexible filename
 X = []
-filepath = 'data/Xfile_lang_test'
+filepath = 'data/Xfile_syn_sf_test'
 with open(filepath) as fp:
 	line = fp.readline()
 	X.append([float(s) for s in line.strip().split(' ')])

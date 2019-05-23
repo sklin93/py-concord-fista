@@ -9,7 +9,7 @@ def load_omega(task,fdir='fs_results/',mid='_',lam=0.0009,vis=True):
     if vis: 
         print(omega.shape)
         print(np.count_nonzero(omega))
-    omega[omega!=0]=1
+    # omega[omega!=0]=1
     return omega
  
 def nz_share(omega_i,omega_j):
@@ -18,12 +18,12 @@ def nz_share(omega_i,omega_j):
     nz_i = np.count_nonzero(omega_i) - d
     nz_j = np.count_nonzero(omega_j) - d
     shared = (nz_i+nz_j-np.count_nonzero(omega_i-omega_j))/2
-    return shared/nz_i, shared/nz_j
+    return shared/nz_i, shared/nz_j, shared
  
 def edge_share():
     pass
 
-if __name__ == '__main__':
+def main():
     result = {}
     for i in range(len(tasks)):
         result[tasks[i]] = load_omega(tasks[i])
@@ -34,8 +34,19 @@ if __name__ == '__main__':
             omega_i = result[tasks[i]]
             omega_j = result[tasks[j]]
             import ipdb; ipdb.set_trace()
-            ratio_i, ratio_j = nz_share(omega_i,omega_j)
+            ratio_i, ratio_j, _ = nz_share(omega_i,omega_j)
             ratio_mat[i,j] = round(ratio_i,5)
             ratio_mat[j,i] = round(ratio_j,5)
     print(ratio_mat)
- 
+
+if __name__ == '__main__':
+    main()
+    '''
+    import pickle
+    with open('data-utility/syn_sf.pkl', 'rb') as f:
+        omega1 = pickle.load(f)['W']
+        print(np.count_nonzero(omega1))
+    omega2 = load_omega('syn_sf',mid='_train_',lam=0.00009)
+    tmp1, tmp2, shared = nz_share(omega1, omega2)
+    print(tmp1, tmp2, shared)
+    '''

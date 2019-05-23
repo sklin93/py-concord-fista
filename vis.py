@@ -11,6 +11,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from hcp_cc import data_prep
+from common_nonzero import load_omega, nz_share
 from scipy.ndimage.morphology import binary_dilation
 import yaml
 with open('config.yaml') as info:
@@ -56,16 +57,17 @@ def plot_edge(omega, r_name, idx, edge_idx):
 
 if __name__ == '__main__':
 	fdir = 'fs_results/'
-	task = 'EMOTION'
+	task = 'syn_sf'
 	if task == 'resting':
 		r_name = info_dict['data']['aal']
 	else:
 		r_name = info_dict['data']['hcp']
-	omega = np.load(fdir+'0.0014_1stage_er_'+task+'.npy') #p*2p
-	omega = omega[:,omega.shape[0]:]
-	print(omega.shape)
-	print(np.count_nonzero(omega))
-
+	# load omega
+	# if task == 'resting' or task == 'syn_sf':
+	# 	omega = load_omega(task,mid='_train_',lam=0.00009) #resting use 0.25
+	# else:
+	# 	omega = load_omega(task,mid='_er_train_hcp2_',lam=0.001)
+	omega = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
 	# visulize omega_fs nz entries
 	plt.figure()
 	omega_vis = omega.copy()
@@ -79,6 +81,18 @@ if __name__ == '__main__':
 	plt.savefig(fdir+'fs_'+task+'.png', bbox_inches = 'tight', pad_inches = 0)
 	plt.show()
 
+	# if using synthetic data, visualize ground truth
+	if task == 'syn_sf':
+		import pickle
+		with open('data-utility/syn_sf.pkl', 'rb') as f:
+			gt_w = pickle.load(f)['W']
+			gt_w[gt_w!=0] = 1
+			for _ in range(3):
+				gt_w = binary_dilation(gt_w)
+			plt.imshow(gt_w.T,cmap='Blues')
+			plt.axis('off')
+			plt.show()
+
 	idx_dict = build_dict(len(r_name))
 	# relative info
 	# 1: which structral edges are the top important k? [per col]
@@ -86,6 +100,21 @@ if __name__ == '__main__':
 	omega_vis = omega.copy()
 	omega_vis[omega_vis!=0]=1
 	s_sum = np.sum(omega_vis,axis=0)
+
+	# plot nz entry number distribution
+	import seaborn as sns
+	sns.distplot(s_sum, kde=False)
+	plt.show()
+	import powerlaw
+	plt.figure()
+	pl_fit = powerlaw.Fit(s_sum)
+	pl_R, pl_p = pl_fit.distribution_compare('power_law', 'lognormal') #more log_normal
+	fig = pl_fit.plot_cdf(linewidth=3, color='b')
+	pl_fit.power_law.plot_cdf(ax=fig, color='g', linestyle='--')
+	pl_fit.lognormal.plot_cdf(ax=fig, color='r', linestyle='--')
+	plt.show()
+	import ipdb; ipdb.set_trace()
+
 	print(s_sum.max(),s_sum.mean(),s_sum.min())
 	sorted_idx_s = np.argsort(s_sum)[::-1]
 	for i in range(s_topk):

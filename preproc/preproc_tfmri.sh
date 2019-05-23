@@ -31,6 +31,7 @@ FLAG_TSEXTRACT="$7"
 FLAG_OVERWRITE="$8"
 
 time_start_all_steps="$(date -u +%s)"
+echo "\n\n\n = = = = = New run started = = = = = =\n"
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu

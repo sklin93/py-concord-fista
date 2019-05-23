@@ -2,6 +2,8 @@ import numpy as np
 import pickle
 import scipy.stats as st
 from tqdm import tqdm
+import sys
+sys.path.append('../')
 from hcp_cc import data_prep
 
 def dist_mapping(name, params, n):
@@ -82,13 +84,13 @@ def gen_f_from_s(S):
     W = gen_w(p)
     F = S@W
     print('F shape: ', F.shape)
-    return F
+    return F, W
 
 if __name__ == '__main__':
-    SAMPLE_NUM = 1000
+    SAMPLE_NUM = 10000
     vec_s, _ = data_prep('LANGUAGE', v1=False)
     S = gen_s_from_dist(vec_s, SAMPLE_NUM)
-    F = gen_f_from_s(S)
-    syn_data = {'S':S, 'F':F}
-    with open('syn.pkl', 'wb') as handle:
+    F, W = gen_f_from_s(S)
+    syn_data = {'S':S, 'F':F, 'W':W}
+    with open('syn_sf.pkl', 'wb') as handle:
         pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
