@@ -286,15 +286,6 @@ def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
 	print(prob.value)
 
 '''Direct regression on each F edges'''
-# import cvxpy as cp
-# def loss_fn(X, Y, beta):
-# 	return cp.norm(cp.matmul(X, beta) - Y, 2)**2
-# def regularizer(beta):
-# 	return cp.norm(beta, 1)
-# def objective_fn(X, Y, beta, lambd):
-#     return loss_fn(X, Y, beta) + lambd * regularizer(beta)
-# def mse(X, Y, beta):
-#     return (1.0 / X.shape[0]) * loss_fn(X, Y, beta).value
 
 def direct_reg(task, split=False):
 	from tqdm import tqdm
@@ -306,15 +297,13 @@ def direct_reg(task, split=False):
 		vec_f = vec_f[:train_num, :]
 	n, p = vec_s.shape
 	w = []
-	for i in tqdm(range(p)):
+	# for i in tqdm(range(p)):
+	for i in [2821, 493, 1604, 296]: # plot curve with alpha from 5e-5 to 1e-3
 		cur_f = vec_f[:, i]
-		# beta = cp.Variable(p)
-		# problem = cp.Problem(cp.Minimize(objective_fn(vec_s, cur_f, beta, 100000)))
-		# problem.solve(CVXOPT)
-		clf = linear_model.Lasso(alpha=1e-7)
+		clf = linear_model.Lasso(alpha=5e-5)
 		clf.fit(vec_s, cur_f)
 		w.append(clf.coef_)
-		# print(np.count_nonzero(clf.coef_))
+		print(np.count_nonzero(clf.coef_))
 	import ipdb; ipdb.set_trace()
 
 

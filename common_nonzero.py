@@ -48,12 +48,13 @@ def main():
 
 if __name__ == '__main__':
     # main()
-    '''
+    # '''
     import pickle
     with open('data-utility/syn_sf.pkl', 'rb') as f:
         omega1 = pickle.load(f)['W'].T
         print(np.count_nonzero(omega1))
-    omega2 = load_omega('syn_sf',mid='_train_',lam=0.00009)
+    # omega2 = load_omega('syn_sf',mid='_train_',lam=0.00009)
     # omega2 = np.load('fs_results/dir_reg_syn_sf.npy')
+    omega2 = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
     nz_share(omega1, omega2)
-    '''
+    # '''
