@@ -10,7 +10,7 @@ from scipy.io import loadmat
 from hcp_cc import data_prep
 from common_nonzero import load_omega, nz_share
 from common_2core import common_edges
-from vis import build_dict
+from vis import build_dict, get_cmap
 import matplotlib.pyplot as plt
 
 def evaluate(vec_s, vec_f, result, is_pred=False):
@@ -237,11 +237,6 @@ if __name__ == '__main__':
 
 	"""
 	# visualize data
-	def get_cmap(n, name='hsv'):
-		'''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-		RGB color; the keyword argument name must be a standard mpl colormap name.'''
-		return plt.cm.get_cmap(name, n)
-
 	cmap = get_cmap(10)
 	plt.figure()
 	# for i in range(vec_s.shape[1]):

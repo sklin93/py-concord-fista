@@ -8,6 +8,10 @@ from scipy.linalg import norm
 from scipy.stats.stats import pearsonr
 from cvxpy import *
 
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
 
@@ -290,22 +294,61 @@ def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
 def direct_reg(task, split=False):
 	from tqdm import tqdm
 	from sklearn import linear_model
+	from sklearn.metrics import mean_squared_error
+	from math import sqrt
+	from vis import get_cmap
 	vec_s, vec_f = data_prep(task, v1=False)
 	if split:
 		train_num = int(vec_s.shape[0]*0.8)
-		vec_s = vec_s[:train_num, :]
-		vec_f = vec_f[:train_num, :]
-	n, p = vec_s.shape
-	w = []
-	# for i in tqdm(range(p)):
-	for i in [2821, 493, 1604, 296]: # plot curve with alpha from 5e-5 to 1e-3
-		cur_f = vec_f[:, i]
-		clf = linear_model.Lasso(alpha=5e-5)
-		clf.fit(vec_s, cur_f)
-		w.append(clf.coef_)
-		print(np.count_nonzero(clf.coef_))
-	import ipdb; ipdb.set_trace()
+		vec_s_train = vec_s[:train_num, :]
+		vec_f_train = vec_f[:train_num, :]
+		vec_s_test = vec_s[train_num:, :]
+		vec_f_test = vec_f[train_num:, :]
+	else:
+		vec_s_train = vec_s_test = vec_s
+		vec_f_train = vec_f_test = vec_f
+	n, p = vec_s_train.shape
 
+	'''
+	# check error vs. sparsity/penalty on 4 rows
+	idx_ = [2821, 493, 1604, 296]
+	for i in range(len(idx_)):
+		idx = idx_[i]
+		error = []
+		sparsity = []
+		alpha_ = []
+		for alpha in np.logspace(-5,-3,50):
+			# print(alpha)
+			cur_f = vec_f_train[:, idx] 
+			clf = linear_model.Lasso(alpha=alpha)
+			clf.fit(vec_s_train, cur_f)
+			# import ipdb; ipdb.set_trace()
+			rms = sqrt(mean_squared_error(vec_f_test[:, idx], clf.predict(vec_s_test)))
+			error.append(rms)
+			sparsity.append(np.count_nonzero(clf.coef_))
+			alpha_.append(alpha)
+		print(alpha_, error, sparsity)
+		plt.figure(idx)
+		plt.plot(sparsity, error)
+		plt.figure(idx+1)
+		plt.plot(alpha_, error)
+	plt.show()
+	import ipdb; ipdb.set_trace()
+	'''
+
+	w = []
+	rms_tot = 0
+	for i in tqdm(range(p)):
+		cur_f = vec_f_train[:, i]
+		clf = linear_model.Lasso(alpha=5e-5)
+		clf.fit(vec_s_train, cur_f)
+		w.append(clf.coef_)
+		# print(np.count_nonzero(clf.coef_))
+		rms_tot += sqrt(mean_squared_error(vec_f_test[:, i], clf.predict(vec_s_test)))
+	omega = np.stack(w)
+	print(np.count_nonzero(omega))
+	print(rms_tot/vec_s_test.shape[0])
+	# import ipdb; ipdb.set_trace()
 
 if __name__ == '__main__':
 	task = sys.argv[1]
@@ -316,4 +359,4 @@ if __name__ == '__main__':
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 	# sgcrf(task)
 	# cc_cvx(task=task, lam=0.01, split=True)
-	direct_reg(task)
+	direct_reg(task, split=True)
