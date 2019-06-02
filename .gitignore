@@ -16,4 +16,4 @@ log*
 preproc/log1
 # data-utility/
 *file_syn_sf_*
-data-utility/syn_sf.pkl
+data-utility/syn_sf_*.pkl

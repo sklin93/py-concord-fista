@@ -1,11 +1,18 @@
 import numpy as np
 import pickle
+import networkx as nx
 import scipy.stats as st
-from tqdm import tqdm
-import sys
-sys.path.append('../')
+from tqdm import tqdm, trange
+import os, sys
+os.chdir('../')
+sys.path.append('./')
 from hcp_cc import data_prep
+os.chdir('./data-utility/')
 
+"""
+'S' is sampled from HCP Effective-Resistance preprocessed structure distribution,
+having the same variable dimension as HCP data.
+"""
 def dist_mapping(name, params, n):
     if name == 'norm':
         return st.norm.rvs(*params, size=n)
@@ -44,13 +51,15 @@ def get_best_distribution(data, n, verbose=False):
         print("Best fitting distribution: "+str(best_dist))
         print("Best p value: "+ str(best_p))
         print("Parameters for the best fit: "+ str(params[best_dist]))
-
-    # return one col of S
-    # import ipdb; ipdb.set_trace()
     return dist_mapping(best_dist, params[best_dist], n)
 
-def gen_s_from_dist(vec_s, n):
-    p = vec_s.shape[1]
+def gen_s_from_dist(vec_s, n, p_=None):
+    '''n is sample size, p_ is variable number;
+    if not specified, variable number will be the same as HCP data'''
+    if p_ is None:
+        p = vec_s.shape[1]
+    else:
+        p = p_
     S = np.zeros((n, p))
     print('Generating S...')
     for i in tqdm(range(p)):
@@ -58,7 +67,12 @@ def gen_s_from_dist(vec_s, n):
     print('S shape, min, max: ', S.shape, S.min(), S.max())
     return S
 
-def gen_w(p):
+"""
+Generate synthetic struncture-function data (Random graph)
+Each 'F_i' is a weighted sum of S_i and a fixed number of other regions. 
+Namely, each node on the mapping graph has the same number of degree.
+"""
+def gen_w_rnd(p):
     ''' generate p*p weight matrix'''
     # diagonal elements must be nonzero: created with ~N(0.8, 0.25)
     w = np.diag(np.random.normal(0.8, 0.5, p))
@@ -78,19 +92,88 @@ def gen_w(p):
     print('Average degree (neighbors-only): ', (np.count_nonzero(w)-p)/p)
     return w
 
-def gen_f_from_s(S):
+def gen_f_from_s_rnd(S):
     n, p = S.shape
     print('Generating F...')
-    W = gen_w(p)
+    W = gen_w_rnd(p)
     F = S@W
     print('F shape: ', F.shape)
     return F, W
 
-if __name__ == '__main__':
+def gen_rnd():
+    '''random network'''
     SAMPLE_NUM = 10000
     vec_s, _ = data_prep('LANGUAGE', v1=False)
     S = gen_s_from_dist(vec_s, SAMPLE_NUM)
-    F, W = gen_f_from_s(S)
+    F, W = gen_f_from_s_rnd(S)
     syn_data = {'S':S, 'F':F, 'W':W}
     with open('syn_sf.pkl', 'wb') as handle:
         pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+"""
+Generate synthetic struncture-function data (Scale-free graph)
+Mapping graph is a scale-free network. 
+- Edge weights?
+Each 'F_i' is gotten from random walk 1-5 steps starting from region i,
+with transition probability based on network edge wights
+- But then we don't have GT mapping?
+- Also there's no need for S to follow HCP distribution, as the network hub of syn & gt will be different
+"""
+
+def sf_mapping(S):
+    n, p = S.shape
+    G = nx.scale_free_graph(p, alpha=0.24, beta=0.75, gamma=0.01)
+    print(nx.info(G))
+    A = np.asarray(nx.to_numpy_matrix(G))
+    # TODO: check log-log plot of G's degree distribution
+    return A
+
+def gen_f_from_s_sf(S, A):
+    n, p = S.shape
+    '''Truncated normal distribution for generating Step Number: sn
+       clip range: [1, 6], with mean=3, sd=1'''
+    sn = list(map(int, np.round(st.truncnorm.rvs(a=-2, b=3, loc=3, size=p))))
+    F = []
+    for k in trange(n, desc='Subject loop'):
+        cur_s = S[k, :]
+        cur_f = np.zeros(p)
+        for i in trange(p, desc='Parameter loop'):
+            # for each S_i, random walk sn[i] steps
+            cur_influencer = cur_s[i]
+            cur_sn = sn[i]
+            cur_pos = i
+            for step in range(cur_sn):
+                if sum(A[cur_pos, :]) == 0:
+                    # no neighbor, i.e. sum(A[cur_pos, :]) == 0
+                    cur_pos = cur_pos
+                else:
+                    # get the probabilities of walking to each node
+                    prob = A[cur_pos, :]/sum(A[cur_pos, :])
+                    # select next location based on the probabilities
+                    cur_pos = np.random.choice(np.arange(p), p=prob)
+            # import ipdb; ipdb.set_trace()
+            # how to define weight??
+            # cur_f[cur_pos] += weight*cur_influencer
+            cur_f[cur_pos] += cur_influencer
+        F.append(cur_f)
+    import ipdb; ipdb.set_trace()
+    return np.stack(F)
+
+def gen_sf(): 
+    '''scale-free network'''
+    SAMPLE_NUM = 1000
+    if os.path.isfile('syn_sf_rnd.pkl'):
+        with open('syn_sf_rnd.pkl', 'rb') as f:
+            S = pickle.load(f)['S']
+            if SAMPLE_NUM < S.shape[0]:
+                S = S[:SAMPLE_NUM, :]
+    else:
+        vec_s, _ = data_prep('LANGUAGE', v1=False)
+        S = gen_s_from_dist(vec_s, SAMPLE_NUM)
+    print('S generated. Shape: ', S.shape)
+    A = sf_mapping(S)
+    print('Scale-free mapping network generated.')
+    gen_f_from_s_sf(S, A)
+
+if __name__ == '__main__':
+    gen_sf()

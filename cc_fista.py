@@ -27,7 +27,7 @@ def pseudol(X,W):
 class cc_fista(object):
 	"""concord fista"""
 	def __init__(self, D, lam, pMat=None, DisS=0,
-				penalize_diag=0, s_f = False, v=True, record=False,
+				penalize_diag=0, s_f=False, v=True, record=False,
 				tol=1e-5, maxit=300, steptype=1, const_ss=1.5):
 		'''
 		D is input data

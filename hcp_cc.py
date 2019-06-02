@@ -12,6 +12,8 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
+import sys
+sys.path.append('./')
 with open('config.yaml') as info:
     info_dict = yaml.load(info)
 
@@ -37,17 +39,18 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 		f = np.stack(f, axis=2)
 	else:
 		if v1:
-			sMat = loadmat(info_dict['data_dir']+info_dict['s_file'])
+			sMat = loadmat(info_dict['data_dir']+info_dict['s_file']['v1'])
 			s = sMat['X']
 			# fMat = loadmat(info_dict['data_dir']+info_dict['f_file'])
 			fMat = loadmat(info_dict['data_dir']+'tfMRI-'+task+'.mat')
 			f = fMat['X']
 		else:
-			with open(info_dict['data_dir']+info_dict['s_file'], 'rb') as f:
+			with open(info_dict['data_dir']+info_dict['s_file'][task], 'rb') as f:
 				sdata = pickle.load(f)
-			with open(info_dict['data_dir']+'corrmats_tfMRI_'+task+'_125mm_LR_ROI_scale33.p','rb') as f:
+			with open(info_dict['data_dir']+info_dict['f_file'][task], 'rb') as f:
 				fdata = pickle.load(f, encoding='latin1')
 			# if subject ids are not specified, then load all the subject data
+			# import ipdb; ipdb.set_trace()
 			if subj_ids == None:
 				subj_ids = []
 				for k in sdata:
@@ -55,8 +58,8 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 			s = []
 			f = []
 			for subj_id in subj_ids:
-				s.append(sdata[subj_id])
-				f.append(fdata[subj_id])
+				s.append(sdata[str(subj_id)])
+				f.append(fdata[str(subj_id)])
 			s = np.stack(s, axis=2)
 			f = np.stack(f, axis=2)
 
@@ -134,6 +137,34 @@ def s_f(task, lam, check_loss_only=False, split=False):
 			np.save(fdir+str(lam)+'_'+task+'.npy',omega)
 		else:
 			np.save(fdir+str(lam)+'_er_hcp2_'+task+'.npy',omega)
+	print(np.count_nonzero(omega))
+	d = omega.shape[0]
+	print(np.count_nonzero(omega[:,:d]))
+	print(np.count_nonzero(omega[:,d:]))
+	print(np.count_nonzero(omega[:,:d].diagonal()))
+	print(np.count_nonzero(omega[:,d:].diagonal()))
+	print(fi.loss())
+
+def f_f(task1, task2, common_subj_ids, lam, split=False):
+	'''vec_f1相当于S; vec_f2相当于F'''
+	_, vec_f1 = data_prep(task1, v1=False, subj_ids=common_subj_ids)
+	_, vec_f2 = data_prep(task2, v1=False, subj_ids=common_subj_ids)
+	print(vec_f1.shape, vec_f2.shape)
+	if split:
+		train_num = int(vec_f1.shape[0]*0.8)
+		vec_f1 = vec_f1[:train_num,:]
+		vec_f2 = vec_f2[:train_num,:]
+	vec = np.concatenate((vec_f2,vec_f1), axis=1)
+	print('Input vector shape: ', vec.shape)
+	fi = cc_fista(vec, lam, s_f=True, steptype=3, const_ss=0.8)
+	# fi = cc_fista(vec, lam, s_f=True, steptype=2) # steptype2 blow
+	start = time.time()
+	omega = fi.infer()
+	print((time.time()-start)/60)
+	if split:
+		np.save(fdir+str(lam)+'_train_'+task1+'_'+task2+'.npy',omega)
+	else:
+		np.save(fdir+str(lam)+task1+'_'+task2+'.npy',omega)
 	print(np.count_nonzero(omega))
 	d = omega.shape[0]
 	print(np.count_nonzero(omega[:,:d]))
@@ -351,12 +382,20 @@ def direct_reg(task, split=False):
 	# import ipdb; ipdb.set_trace()
 
 if __name__ == '__main__':
-	task = sys.argv[1]
+	# task = sys.argv[1]
+	lam = float(sys.argv[1])
 
 	# f_only(task,lam=0.1)
-	# s_f(task, lam=0.00009, check_loss_only=False, split=True)
+
+	common_subj_ids = [146432, 205826, 214019, 163331, 141826, 124422, 159239, 129028, 189450, 209935, 123925, 140824, 162329, 119833, 192540, 256540, 123420, 149539, 166438, 217126, 161327, 196144, 250932, 182840, 135225, 191033, 250427, 160830, 148032, 156233, 164939, 151627, 190031, 177746, 245333, 147030, 125525, 194645, 201818, 210011, 194140, 155231, 150625, 185442, 172130, 180836, 159340, 141422, 154734, 171633, 128632, 167036, 128127, 140420, 131722, 196750, 127630, 131217, 179346, 212116, 118932, 255639, 157336, 203418, 187547, 178849, 126628, 151223, 210617, 164030, 120515, 201414, 198855, 150726, 180937, 214726, 214221, 180432, 159441, 154835, 193239, 197348, 162026, 123117, 149741, 204016, 212217, 122620, 157437, 152831, 118528, 178950, 195849, 130316, 211215, 121618, 199958, 224022, 173334, 147737, 186141, 199453, 194847, 138534, 133928, 172332, 120111, 198451, 185139, 154936, 163129, 124220, 205119, 154431, 239944, 192843, 158540, 175439, 158035, 131924, 217429, 140117, 153429, 149337, 179548, 161630, 212318, 208226, 144226, 135528, 148840, 130922, 191336, 233326, 211316, 126325, 139637, 173940, 246133, 173435, 160123, 169343, 172938, 181131, 120212, 168341, 201111, 214423, 124826, 133019, 146331, 205725, 176542, 180129, 205220, 189349, 200614, 145834, 162733, 162228, 158136, 251833, 188347, 175035, 127933, 144832, 153025, 161731, 212419, 118730, 187850, 191437, 122317, 148941, 211922, 182739, 211417, 156637, 143325, 178142, 173536, 139233, 130013, 195041, 169444, 151526, 199655, 177645, 199150, 210415, 181232, 155635, 231928, 133625, 163836, 172029]
+	f_f('WM', 'LANGUAGE', common_subj_ids, lam, split=True)
+
+	# s_f(task, lam=lam, check_loss_only=False, split=True)
+
 	# s_f_direct(task, lam=0.00009, split=True)
+
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
+
 	# sgcrf(task)
 	# cc_cvx(task=task, lam=0.01, split=True)
-	direct_reg(task, split=True)
+	# direct_reg(task, split=True)
