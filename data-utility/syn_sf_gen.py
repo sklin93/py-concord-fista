@@ -8,6 +8,9 @@ os.chdir('../')
 sys.path.append('./')
 from hcp_cc import data_prep
 os.chdir('./data-utility/')
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 
 """
 'S' is sampled from HCP Effective-Resistance preprocessed structure distribution,
@@ -122,10 +125,26 @@ with transition probability based on network edge wights
 
 def sf_mapping(S):
     n, p = S.shape
-    G = nx.scale_free_graph(p, alpha=0.24, beta=0.75, gamma=0.01)
+    
+    G = nx.barabasi_albert_graph(p, int(p/1.001))
+    # G = nx.scale_free_graph(p, alpha=0.13, beta=0.75, gamma=0.12)
     print(nx.info(G))
     A = np.asarray(nx.to_numpy_matrix(G))
+    import seaborn as sns
+    deg = np.sum(A, axis=1)
+    sns.distplot(deg, kde=False)
+    plt.show()
+    import powerlaw
+    plt.figure()
+    pl_fit = powerlaw.Fit(deg)
+    # pl_R, pl_p = pl_fit.distribution_compare('power_law', 'lognormal') #more log_normal
+    fig = pl_fit.plot_cdf(linewidth=3, color='b')
+    pl_fit.power_law.plot_cdf(ax=fig, color='g', linestyle='--')
+    # pl_fit.lognormal.plot_cdf(ax=fig, color='r', linestyle='--')
+    import ipdb; ipdb.set_trace()
+    
     # TODO: check log-log plot of G's degree distribution
+    
     return A
 
 def gen_f_from_s_sf(S, A):
@@ -139,22 +158,26 @@ def gen_f_from_s_sf(S, A):
         cur_f = np.zeros(p)
         for i in trange(p, desc='Parameter loop'):
             # for each S_i, random walk sn[i] steps
-            cur_influencer = cur_s[i]
             cur_sn = sn[i]
             cur_pos = i
+            cur_influencer = cur_s[cur_pos]
+            cur_val = 0
             for step in range(cur_sn):
                 if sum(A[cur_pos, :]) == 0:
                     # no neighbor, i.e. sum(A[cur_pos, :]) == 0
-                    cur_pos = cur_pos
+                    nxt_pos = cur_pos
                 else:
                     # get the probabilities of walking to each node
                     prob = A[cur_pos, :]/sum(A[cur_pos, :])
                     # select next location based on the probabilities
-                    cur_pos = np.random.choice(np.arange(p), p=prob)
-            # import ipdb; ipdb.set_trace()
+                    nxt_pos = np.random.choice(np.arange(p), p=prob)
+                cur_val += cur_influencer*w[cur_pos, nxt_pos]
+                # update
+                cur_pos = nxt_pos
+                cur_influencer = cur_s[cur_pos]
             # how to define weight??
             # cur_f[cur_pos] += weight*cur_influencer
-            cur_f[cur_pos] += cur_influencer
+            # cur_f[cur_pos] += cur_influencer
         F.append(cur_f)
     import ipdb; ipdb.set_trace()
     return np.stack(F)
