@@ -6,7 +6,7 @@ def plot_degree_distribution(G):
     degs = {}
     for n in G.nodes():
         deg = G.degree(n)
-        pprint(deg)
+        # pprint(deg)
         if deg not in degs:
             degs[deg] = 0
         degs[deg] += 1
@@ -21,8 +21,8 @@ def plot_degree_distribution(G):
     plt.show()
     fig.savefig("degree_distribution.png")
 
-def ba_test():
-    ba = nx.random_graphs.barabasi_albert_graph(3404,30)
+def ba_test(p=3404, m=30):
+    ba = nx.random_graphs.barabasi_albert_graph(p, m)
     plot_degree_distribution(ba)
     return ba
 
