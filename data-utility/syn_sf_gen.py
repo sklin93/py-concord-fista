@@ -126,10 +126,12 @@ with transition probability based on network edge wights
 def sf_mapping(S):
     n, p = S.shape
     
-    G = nx.barabasi_albert_graph(p, int(p/1.001))
+    G = nx.barabasi_albert_graph(p, 5)
     # G = nx.scale_free_graph(p, alpha=0.13, beta=0.75, gamma=0.12)
     print(nx.info(G))
     A = np.asarray(nx.to_numpy_matrix(G))
+    np.fill_diagonal(A, 1)
+    '''
     import seaborn as sns
     deg = np.sum(A, axis=1)
     sns.distplot(deg, kde=False)
@@ -137,16 +139,20 @@ def sf_mapping(S):
     import powerlaw
     plt.figure()
     pl_fit = powerlaw.Fit(deg)
-    # pl_R, pl_p = pl_fit.distribution_compare('power_law', 'lognormal') #more log_normal
     fig = pl_fit.plot_cdf(linewidth=3, color='b')
     pl_fit.power_law.plot_cdf(ax=fig, color='g', linestyle='--')
-    # pl_fit.lognormal.plot_cdf(ax=fig, color='r', linestyle='--')
-    import ipdb; ipdb.set_trace()
-    
-    # TODO: check log-log plot of G's degree distribution
-    
+    plt.show()
+    '''
+    # randomize edge weights
+    for i in range(p):
+        for j in range(i, p):
+            if A[i, j] != 0:
+                rnd_ = np.random.uniform(-1,1)
+                A[i, j] = rnd_
+                A[j, i] = rnd_
     return A
 
+""" random walk
 def gen_f_from_s_sf(S, A):
     n, p = S.shape
     '''Truncated normal distribution for generating Step Number: sn
@@ -181,6 +187,7 @@ def gen_f_from_s_sf(S, A):
         F.append(cur_f)
     import ipdb; ipdb.set_trace()
     return np.stack(F)
+"""
 
 def gen_sf(): 
     '''scale-free network'''
@@ -194,9 +201,13 @@ def gen_sf():
         vec_s, _ = data_prep('LANGUAGE', v1=False)
         S = gen_s_from_dist(vec_s, SAMPLE_NUM)
     print('S generated. Shape: ', S.shape)
-    A = sf_mapping(S)
+    W = sf_mapping(S)
     print('Scale-free mapping network generated.')
-    gen_f_from_s_sf(S, A)
+    F = S@W
+    print('F shape: ', F.shape)
+    syn_data = {'S':S, 'F':F, 'W':W}
+    with open('syn_sf_sf.pkl', 'wb') as handle:
+        pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
     gen_sf()
