@@ -69,11 +69,12 @@ if __name__ == '__main__':
 	else:
 		r_name = info_dict['data']['hcp']
 	# load omega
-	if task == 'resting' or task == 'syn_sf':
-		omega = load_omega(task, mid='_train_', lam=0.00009) #resting use 0.25
+	if task == 'resting' or task[:6] == 'syn_sf':
+		omega = load_omega(task, mid='_train_', lam=9e-05) #resting use 0.25
 	else:
 		omega = load_omega(task, mid='_er_train_hcp2_', lam=0.0014)
 	# omega = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
+	# omega = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
 	# visulize omega_fs nz entries
 	plt.figure()
 	omega_vis = omega.copy()
@@ -90,7 +91,7 @@ if __name__ == '__main__':
 	# if using synthetic data, visualize ground truth
 	if task == 'syn_sf':
 		import pickle
-		with open('data-utility/syn_sf.pkl', 'rb') as f:
+		with open('data-utility/syn_sf_sf.pkl', 'rb') as f:
 			gt_w = pickle.load(f)['W']
 			gt_w[gt_w!=0] = 1
 			for _ in range(3):

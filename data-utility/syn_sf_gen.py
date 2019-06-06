@@ -191,7 +191,7 @@ def gen_f_from_s_sf(S, A):
 
 def gen_sf(): 
     '''scale-free network'''
-    SAMPLE_NUM = 1000
+    SAMPLE_NUM = 10000
     if os.path.isfile('syn_sf_rnd.pkl'):
         with open('syn_sf_rnd.pkl', 'rb') as f:
             S = pickle.load(f)['S']
@@ -200,13 +200,23 @@ def gen_sf():
     else:
         vec_s, _ = data_prep('LANGUAGE', v1=False)
         S = gen_s_from_dist(vec_s, SAMPLE_NUM)
+
+    # Shuffling variable to see if the artifacts still exists at the same column
+    # Permutation matrix
+    P = np.eye(S.shape[1])
+    np.random.shuffle(P)
+    S = S@P
     print('S generated. Shape: ', S.shape)
+
     W = sf_mapping(S)
     print('Scale-free mapping network generated.')
+
     F = S@W
     print('F shape: ', F.shape)
-    syn_data = {'S':S, 'F':F, 'W':W}
-    with open('syn_sf_sf.pkl', 'wb') as handle:
+    # syn_data = {'S':S, 'F':F, 'W':W}
+    syn_data = {'S':S, 'F':F, 'W':W, 'P':P}
+
+    with open('syn_sf_sf_shuffled.pkl', 'wb') as handle:
         pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
