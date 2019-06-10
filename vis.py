@@ -74,7 +74,7 @@ if __name__ == '__main__':
 	else:
 		omega = load_omega(task, mid='_er_train_hcp2_', lam=0.0014)
 	# omega = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
-	# omega = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
+	omega = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
 	# visulize omega_fs nz entries
 	plt.figure()
 	omega_vis = omega.copy()
