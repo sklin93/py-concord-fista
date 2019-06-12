@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import linalg as la
 import pickle
 import networkx as nx
 import scipy.stats as st
@@ -11,6 +12,79 @@ os.chdir('./data-utility/')
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+
+#########
+# EXTERNAL HELPER FUNCTIONS
+#########
+def nearestPD(A):
+    """Find the nearest positive-definite matrix to input
+    A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
+    credits [2].
+    [1] https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd
+    [2] N.J. Higham, "Computing a nearest symmetric positive semidefinite
+    matrix" (1988): https://doi.org/10.1016/0024-3795(88)90223-6
+    """
+    B = (A + A.T) / 2
+    _, s, V = la.svd(B)
+    H = np.dot(V.T, np.dot(np.diag(s), V))
+    A2 = (B + H) / 2
+    A3 = (A2 + A2.T) / 2
+    if isPD(A3):
+        return A3
+    spacing = np.spacing(la.norm(A))
+    # The above is different from [1]. It appears that MATLAB's `chol` Cholesky
+    # decomposition will accept matrixes with exactly 0-eigenvalue, whereas
+    # Numpy's will not. So where [1] uses `eps(mineig)` (where `eps` is Matlab
+    # for `np.spacing`), we use the above definition. CAVEAT: our `spacing`
+    # will be much larger than [1]'s `eps(mineig)`, since `mineig` is usually on
+    # the order of 1e-16, and `eps(1e-16)` is on the order of 1e-34, whereas
+    # `spacing` will, for Gaussian random matrixes of small dimension, be on
+    # othe order of 1e-16. In practice, both ways converge, as the unit test
+    # below suggests.
+    I = np.eye(A.shape[0])
+    k = 1
+    while not isPD(A3):
+        mineig = np.min(np.real(la.eigvals(A3)))
+        A3 += I * (-mineig * k**2 + spacing)
+        k += 1
+    return A3
+def isPD(B):
+    """Returns true when input is positive-definite, via Cholesky"""
+    try:
+        _ = la.cholesky(B)
+        return True
+    except la.LinAlgError:
+        return False
+#written by Enzo Michelangeli, style changes by josef-pktd
+# Student's T random variable
+def multivariate_t_rvs(m, S, df=np.inf, n=1):
+    '''generate random variables of multivariate t distribution
+    Parameters
+    ----------
+    m : array_like
+        mean of random variable, length determines dimension of random variable
+    S : array_like
+        square array of covariance  matrix
+    df : int or float
+        degrees of freedom
+    n : int
+        number of observations, return random array will be (n, len(m))
+    Returns
+    -------
+    rvs : ndarray, (n, len(m))
+        each row is an independent draw of a multivariate t distributed
+        random variable
+    '''
+    m = np.asarray(m)
+    d = len(m)
+    if df == np.inf:
+        x = 1.
+    else:
+        x = np.random.chisquare(df, n)/df
+    z = np.random.multivariate_normal(np.zeros(d),S,(n,))
+    return m + z/np.sqrt(x)[:,None]   # same output format as random.multivariate_normal
+
+
 
 """
 'S' is sampled from HCP Effective-Resistance preprocessed structure distribution,
@@ -189,9 +263,16 @@ def gen_f_from_s_sf(S, A):
     return np.stack(F)
 """
 
-def gen_sf(): 
-    '''scale-free network'''
-    SAMPLE_NUM = 1000
+def gen_sf(noise_type=0, shuffle=False): 
+    '''scale-free network
+    noise_type: 0 being no noise, 
+    1 being independent Gaussian,
+    2 being multivarite Gaussian with Sigma,
+    3 being idependent t-distribution,
+    4 being multivariate t-distribution
+    '''
+
+    SAMPLE_NUM = 10000
     if os.path.isfile('syn_sf_rnd.pkl'):
         with open('syn_sf_rnd.pkl', 'rb') as f:
             S = pickle.load(f)['S']
@@ -200,14 +281,62 @@ def gen_sf():
     else:
         vec_s, _ = data_prep('LANGUAGE', v1=False)
         S = gen_s_from_dist(vec_s, SAMPLE_NUM)
+
+    p = S.shape[1]
+
+    if shuffle:
+        '''Shuffling variables to see if the artifacts still exists at the same column'''
+        P_ = np.eye(p)  # permutation matrix
+        np.random.shuffle(P_)
+        S = S@P_     # shuffle columns
+    
     print('S generated. Shape: ', S.shape)
+
     W = sf_mapping(S)
     print('Scale-free mapping network generated.')
+
     F = S@W
+    if noise_type == 1:
+        '''noise sampled from ~N(0, 1/3 current F's sd)'''
+        for i in tqdm(range(p)):
+            cur_noise = np.random.normal(0, np.std(F[:, i])/3.0, SAMPLE_NUM)
+            F[:, i] += cur_noise
+    if noise_type == 2:
+        '''noise sampled from ~N(0, Cov), with Cov's diag being the same as in noise_type 1'''
+        # initialize random covariance
+        cov = np.random.uniform(-0.001, 0.001, p*p).reshape(p, p)
+        cov = cov @ cov.T
+        for i in tqdm(range(p)):
+            cov[i, i] = np.std(F[:, i])/3.0
+        cov = nearestPD(cov)
+        noise = np.random.multivariate_normal(np.zeros(p), cov, SAMPLE_NUM)
+        F += noise
+    if noise_type == 3:
+        '''noise sampled from ~T(df=5, 0, 1/3 current F's sd)'''
+        df = 5
+        for i in tqdm(range(p)):
+            cur_noise = st.t.rvs(df, loc=0, scale=np.std(F[:, i])/3.0, size=SAMPLE_NUM)
+            F[:, i] += cur_noise
+    if noise_type == 4:
+        '''noise sampled from T(df=5, 0, Cov), Cov is the same as noise_type 2'''
+        cov = np.random.uniform(-0.001, 0.001, p*p).reshape(p, p)
+        cov = cov @ cov.T
+        for i in tqdm(range(p)):
+            cov[i, i] = np.std(F[:, i])/3.0
+        cov = nearestPD(cov)
+        noise = multivariate_t_rvs(np.zeros(p), cov, df=5, n=SAMPLE_NUM)
+        F += noise
     print('F shape: ', F.shape)
-    syn_data = {'S':S, 'F':F, 'W':W}
-    with open('syn_sf_sf.pkl', 'wb') as handle:
-        pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # saving data
+    if shuffle:
+        syn_data = {'S':S, 'F':F, 'W':W, 'P':P_}
+        with open('syn_sf_sf_'+str(noise_type)+'_shuffled.pkl', 'wb') as handle:
+            pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:
+        syn_data = {'S':S, 'F':F, 'W':W}
+        with open('syn_sf_sf_'+str(noise_type)+'.pkl', 'wb') as handle:
+            pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
-    gen_sf()
+    gen_sf(noise_type=4, shuffle=False)

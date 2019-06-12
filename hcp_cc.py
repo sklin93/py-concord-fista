@@ -3,14 +3,22 @@ import numpy as np
 import pickle
 import sys
 from cc_fista import cc_fista, standardize, pseudol
-import time, yaml
-from scipy.linalg import norm
-from scipy.stats.stats import pearsonr
-from cvxpy import *
 
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+
+import time, yaml
+from scipy.linalg import norm
+import scipy.stats as st
+from scipy.stats.stats import pearsonr
+from cvxpy import *
+
+from tqdm import tqdm
+from sklearn import linear_model
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
 
 import sys
 sys.path.append('./')
@@ -19,12 +27,12 @@ with open('config.yaml') as info:
 
 fdir = 'fs_results/'
 
-def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
+def data_prep(task, v1=True, subj_ids=None, flatten=True, normalize_s=False):
 	if task == 'syn_sf':
-		with open('data-utility/syn_sf.pkl','rb') as f: 
+		with open(info_dict['syn_file'],'rb') as f: 
 			data = pickle.load(f)
-			vec_s = data['S']
-			vec_f = data['F']
+			s = data['S']
+			f = data['F']
 
 	elif task == 'resting':
 		dataMat = loadmat(info_dict['data_dir_Bassette']+info_dict['Bassette_file'])
@@ -50,7 +58,6 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 			with open(info_dict['data_dir']+info_dict['f_file'][task], 'rb') as f:
 				fdata = pickle.load(f, encoding='latin1')
 			# if subject ids are not specified, then load all the subject data
-			# import ipdb; ipdb.set_trace()
 			if subj_ids == None:
 				subj_ids = []
 				for k in sdata:
@@ -63,7 +70,7 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 			s = np.stack(s, axis=2)
 			f = np.stack(f, axis=2)
 
-	if task != 'syn_sf':
+	if task != 'syn_sf' and flatten:
 		d,_,n = s.shape
 		vec_s = []
 		vec_f = []
@@ -75,6 +82,9 @@ def data_prep(task, v1=True, subj_ids=None, normalize_s=False):
 				# p = p+1
 		vec_s = np.transpose(np.asarray(vec_s))
 		vec_f = np.transpose(np.asarray(vec_f))
+	else:
+		vec_s = s
+		vec_f = f
 	if normalize_s:
 		vec_s -= vec_s.min()
 		vec_s /= vec_s.max()
@@ -323,10 +333,6 @@ def cc_cvx(task, lam, pMat=None, s_f=False, split=False):
 '''Direct regression on each F edges'''
 
 def direct_reg(task, split=False):
-	from tqdm import tqdm
-	from sklearn import linear_model
-	from sklearn.metrics import mean_squared_error
-	from math import sqrt
 	from vis import get_cmap
 	vec_s, vec_f = data_prep(task, v1=False)
 	if split:
@@ -353,7 +359,6 @@ def direct_reg(task, split=False):
 			cur_f = vec_f_train[:, idx] 
 			clf = linear_model.Lasso(alpha=alpha)
 			clf.fit(vec_s_train, cur_f)
-			# import ipdb; ipdb.set_trace()
 			rms = sqrt(mean_squared_error(vec_f_test[:, idx], clf.predict(vec_s_test)))
 			error.append(rms)
 			sparsity.append(np.count_nonzero(clf.coef_))
@@ -371,7 +376,7 @@ def direct_reg(task, split=False):
 	rms_tot = 0
 	for i in tqdm(range(p)):
 		cur_f = vec_f_train[:, i]
-		clf = linear_model.Lasso(alpha=5e-5)
+		clf = linear_model.Lasso(alpha=1e-8)
 		clf.fit(vec_s_train, cur_f)
 		w.append(clf.coef_)
 		# print(np.count_nonzero(clf.coef_))
@@ -379,16 +384,17 @@ def direct_reg(task, split=False):
 	omega = np.stack(w)
 	print(np.count_nonzero(omega))
 	print(rms_tot/vec_s_test.shape[0])
-	# import ipdb; ipdb.set_trace()
+	import ipdb; ipdb.set_trace()
 
 if __name__ == '__main__':
-	# task = sys.argv[1]
-	lam = float(sys.argv[1])
+	task = sys.argv[1]
+	lam = float(sys.argv[2])
 
+	'''CONCORD'''
 	# f_only(task,lam=0.1)
 
-	common_subj_ids = [146432, 205826, 214019, 163331, 141826, 124422, 159239, 129028, 189450, 209935, 123925, 140824, 162329, 119833, 192540, 256540, 123420, 149539, 166438, 217126, 161327, 196144, 250932, 182840, 135225, 191033, 250427, 160830, 148032, 156233, 164939, 151627, 190031, 177746, 245333, 147030, 125525, 194645, 201818, 210011, 194140, 155231, 150625, 185442, 172130, 180836, 159340, 141422, 154734, 171633, 128632, 167036, 128127, 140420, 131722, 196750, 127630, 131217, 179346, 212116, 118932, 255639, 157336, 203418, 187547, 178849, 126628, 151223, 210617, 164030, 120515, 201414, 198855, 150726, 180937, 214726, 214221, 180432, 159441, 154835, 193239, 197348, 162026, 123117, 149741, 204016, 212217, 122620, 157437, 152831, 118528, 178950, 195849, 130316, 211215, 121618, 199958, 224022, 173334, 147737, 186141, 199453, 194847, 138534, 133928, 172332, 120111, 198451, 185139, 154936, 163129, 124220, 205119, 154431, 239944, 192843, 158540, 175439, 158035, 131924, 217429, 140117, 153429, 149337, 179548, 161630, 212318, 208226, 144226, 135528, 148840, 130922, 191336, 233326, 211316, 126325, 139637, 173940, 246133, 173435, 160123, 169343, 172938, 181131, 120212, 168341, 201111, 214423, 124826, 133019, 146331, 205725, 176542, 180129, 205220, 189349, 200614, 145834, 162733, 162228, 158136, 251833, 188347, 175035, 127933, 144832, 153025, 161731, 212419, 118730, 187850, 191437, 122317, 148941, 211922, 182739, 211417, 156637, 143325, 178142, 173536, 139233, 130013, 195041, 169444, 151526, 199655, 177645, 199150, 210415, 181232, 155635, 231928, 133625, 163836, 172029]
-	f_f('WM', 'LANGUAGE', common_subj_ids, lam, split=True)
+	# common_subj_ids = [146432, 205826, 214019, 163331, 141826, 124422, 159239, 129028, 189450, 209935, 123925, 140824, 162329, 119833, 192540, 256540, 123420, 149539, 166438, 217126, 161327, 196144, 250932, 182840, 135225, 191033, 250427, 160830, 148032, 156233, 164939, 151627, 190031, 177746, 245333, 147030, 125525, 194645, 201818, 210011, 194140, 155231, 150625, 185442, 172130, 180836, 159340, 141422, 154734, 171633, 128632, 167036, 128127, 140420, 131722, 196750, 127630, 131217, 179346, 212116, 118932, 255639, 157336, 203418, 187547, 178849, 126628, 151223, 210617, 164030, 120515, 201414, 198855, 150726, 180937, 214726, 214221, 180432, 159441, 154835, 193239, 197348, 162026, 123117, 149741, 204016, 212217, 122620, 157437, 152831, 118528, 178950, 195849, 130316, 211215, 121618, 199958, 224022, 173334, 147737, 186141, 199453, 194847, 138534, 133928, 172332, 120111, 198451, 185139, 154936, 163129, 124220, 205119, 154431, 239944, 192843, 158540, 175439, 158035, 131924, 217429, 140117, 153429, 149337, 179548, 161630, 212318, 208226, 144226, 135528, 148840, 130922, 191336, 233326, 211316, 126325, 139637, 173940, 246133, 173435, 160123, 169343, 172938, 181131, 120212, 168341, 201111, 214423, 124826, 133019, 146331, 205725, 176542, 180129, 205220, 189349, 200614, 145834, 162733, 162228, 158136, 251833, 188347, 175035, 127933, 144832, 153025, 161731, 212419, 118730, 187850, 191437, 122317, 148941, 211922, 182739, 211417, 156637, 143325, 178142, 173536, 139233, 130013, 195041, 169444, 151526, 199655, 177645, 199150, 210415, 181232, 155635, 231928, 133625, 163836, 172029]
+	# f_f('WM', 'LANGUAGE', common_subj_ids, lam, split=True)
 
 	# s_f(task, lam=lam, check_loss_only=False, split=True)
 
@@ -396,6 +402,7 @@ if __name__ == '__main__':
 
 	# reconstruct_err(task,fdir+'0.0014_1stage_er2_'+task+'.npy')
 
+	'''Other methods'''
 	# sgcrf(task)
 	# cc_cvx(task=task, lam=0.01, split=True)
 	# direct_reg(task, split=True)
