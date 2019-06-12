@@ -1,0 +1,9 @@
+# This script aligns Laussane atlas to Yeo's 7/17 parcellation.
+
+# Yeo's network: https://surfer.nmr.mgh.harvard.edu/fswiki/CorticalParcellation_Yeo2011
+# FSL_MNI152_FreeSurferConformed_1mm.nii.gz: 
+#       is the FSL MNI152 1mm template interpolated and intensity normalized into 
+#       a 256 x 256 x 256 1mm-isotropic volume (obtained by putting the FSL MNI152
+#       1mm template through recon-all using FreeSurfer 4.5.0).
+
+
