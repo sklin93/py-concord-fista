@@ -3,6 +3,7 @@ from numpy import linalg as la
 import pickle
 import networkx as nx
 import scipy.stats as st
+from numpy import linalg as LA
 from tqdm import tqdm, trange
 import os, sys
 os.chdir('../')
@@ -338,5 +339,74 @@ def gen_sf(noise_type=0, shuffle=False):
         with open('syn_sf_sf_'+str(noise_type)+'.pkl', 'wb') as handle:
             pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+"""
+Generation methods from CGGM(and other papers)
+"""
+
+def gen_invcov(p):
+    '''Lambda matrix in CGGM. Method found in paper:
+    An inexact interior point method for L1-regularized sparse covariance selection'''
+    thresh = 0.997
+    U = np.random.rand(p,p)*2-1
+    U[np.where(np.logical_and(U>=-thresh, U<=thresh))] = 0
+    U[np.where(U>thresh)] = 1
+    U[np.where(U<-thresh)] = -1
+    print(np.count_nonzero(U), np.count_nonzero(U)/(p*p))
+    # print(set(U.flatten()))
+    A = U.T @ U
+    d = A.diagonal()
+    A = np.maximum(np.minimum(A - np.diag(d), 1), -1)
+    A = A + np.diag(d + 1)
+    invcov = A + max(-1.2 * min(LA.eigvals(A)), 1e-4) * np.eye(p)
+    return invcov
+
+def gen_theta(p, q):
+    '''Theta matrix in CGGM. Data: X: p-dimensional, Y: q-dimensional''' 
+    a = 10 # 100 in CGGM
+    b = 3 # 10 in CGGM
+    num_influencer = min(p, int(a * np.sqrt(p))) # which x has influence on y
+    num_edges = b * q # total number of edges across x and y
+    theta_ = np.zeros(num_influencer * q)
+    theta_[np.random.choice(num_influencer*q, num_edges, replace=False)] = 1
+    theta_ = theta_.reshape(num_influencer, q)
+    theta = np.zeros((p,q))
+    chosen_influencer = np.random.choice(p, num_influencer, replace=False)
+    for i in chosen_influencer:
+        theta[i, :] = theta_[0]
+        theta_ = np.delete(theta_, 0, 0)
+    return theta
+
+def gen_CGGM():
+    SAMPLE_NUM = 1000
+    p = 1000
+    if os.path.isfile('syn_sf_rnd.pkl'):
+        with open('syn_sf_rnd.pkl', 'rb') as f:
+            S = pickle.load(f)['S']
+            if SAMPLE_NUM < S.shape[0]:
+                S = S[:SAMPLE_NUM, :]
+            assert p <= S.shape[1], 'cannot select more dimensions\
+                                     than the variable dimensions'
+            S = S[:, :p]
+    else:
+        vec_s, _ = data_prep('LANGUAGE', v1=False)
+        S = gen_s_from_dist(vec_s, SAMPLE_NUM)
+        assert p <= S.shape[1], 'cannot select more dimensions\
+                                 than the variable dimensions'
+        S = S[:, :p]
+
+    Theta = gen_theta(p, p)
+    Lambda = gen_invcov(p)
+    cov = LA.inv(Lambda)
+    B = - Theta @ cov
+    F = []
+    for i in tqdm(range(SAMPLE_NUM)):
+        mean = B.T @ S[i]
+        F.append(np.random.multivariate_normal(mean, cov))
+    F = np.stack(F)
+    syn_data = {'S':S, 'F':F, 'Theta':Theta, 'Lambda':Lambda}
+    with open('syn_sf_CGGM.pkl', 'wb') as handle:
+        pickle.dump(syn_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 if __name__ == '__main__':
-    gen_sf(noise_type=4, shuffle=False)
+    # gen_sf(noise_type=4, shuffle=False)
+    gen_CGGM()
