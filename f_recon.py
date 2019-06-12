@@ -258,9 +258,10 @@ if __name__ == '__main__':
 	# 	omega = load_omega(task,mid='_er_train_hcp2_',lam=0.0004)
 	# omega = rnd_omega_1(omega)
 	# omega = rnd_omega_2(omega)
-	omega = np.load('fs_results/0.001_train_syn_sf.npy')[:,3403:]
-	# omega = np.load('fs_results/dir_reg_1e-8_syn_sf_sf.npy')
+	omega = np.load('fs_results/0.000095_train_syn_sf_sf_1.npy')[:,3403:]
+	# omega = np.load('fs_results/dir_reg_5.7e-06_syn_sf_sf_4.npy')
 	print(np.count_nonzero(omega))
+	import ipdb; ipdb.set_trace()
 	split = True
 	if split:
 		test_num = int(vec_s.shape[0]*0.2)

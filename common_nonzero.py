@@ -50,10 +50,13 @@ if __name__ == '__main__':
     # main()
     # '''
     import pickle
-    with open('data-utility/syn_sf_sf_shuffled.pkl', 'rb') as f:
+    with open('data-utility/syn_sf_sf_1.pkl', 'rb') as f:
         omega1 = pickle.load(f)['W'].T
         print(np.count_nonzero(omega1))
     # omega1 = np.load('fs_results/0.07_train_LANGUAGE_WM.npy')[:, 3403:]
-    omega2 = np.load('fs_results/9e-05_train_syn_sf.npy')[:, 3403:]
+    omega2 = np.load('fs_results/0.000095_train_syn_sf_sf_1.npy')[:, 3403:]
+    # omega2 = np.load('fs_results/dir_reg_5.7e-06_syn_sf_sf_4.npy')
+    print(np.count_nonzero(omega2))
+
     nz_share(omega1, omega2)
     # '''
