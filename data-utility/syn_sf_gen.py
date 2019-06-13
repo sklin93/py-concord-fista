@@ -343,10 +343,9 @@ def gen_sf(noise_type=0, shuffle=False):
 Generation methods from CGGM(and other papers)
 """
 
-def gen_invcov(p):
+def gen_invcov(p, thresh = 0.997):
     '''Lambda matrix in CGGM. Method found in paper:
     An inexact interior point method for L1-regularized sparse covariance selection'''
-    thresh = 0.997
     U = np.random.rand(p,p)*2-1
     U[np.where(np.logical_and(U>=-thresh, U<=thresh))] = 0
     U[np.where(U>thresh)] = 1
@@ -379,6 +378,8 @@ def gen_theta(p, q):
 def gen_CGGM():
     SAMPLE_NUM = 1000
     p = 1000
+    '''
+    # Using real data's structural distribution
     if os.path.isfile('syn_sf_rnd.pkl'):
         with open('syn_sf_rnd.pkl', 'rb') as f:
             S = pickle.load(f)['S']
@@ -393,7 +394,13 @@ def gen_CGGM():
         assert p <= S.shape[1], 'cannot select more dimensions\
                                  than the variable dimensions'
         S = S[:, :p]
-
+    '''
+    # Sample S from multivariate normal distribution
+    # S entries are more connected to each other, set thresh smaller (more nonzeros)
+    S = np.random.multivariate_normal(np.zeros(p), 
+                LA.inv(gen_invcov(p, thresh=0.5)), SAMPLE_NUM)
+    print('S shape: ', S.shape)
+    
     Theta = gen_theta(p, p)
     Lambda = gen_invcov(p)
     cov = LA.inv(Lambda)
