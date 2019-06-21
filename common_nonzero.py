@@ -12,13 +12,17 @@ def load_omega(task,fdir='fs_results/',mid='_',lam=0.0009,vis=True):
     # omega[omega!=0]=1
     return omega
  
-def nz_share(omega_i, omega_j, verbose=True):
-    '''shared nonzero entry percentage, except diagonal'''
+def nz_share(omega_i, omega_j, exclude_diag=True, verbose=True):
+    '''shared nonzero entry percentage, except diagonal by default'''
     omega_i[omega_i!=0] = 1
     omega_j[omega_j!=0] = 1
-    d, _ = omega_i.shape
-    nz_i = np.count_nonzero(omega_i) - d
-    nz_j = np.count_nonzero(omega_j) - d
+    if exclude_diag:
+        d, _ = omega_i.shape
+        nz_i = np.count_nonzero(omega_i) - d
+        nz_j = np.count_nonzero(omega_j) - d
+    else:
+        nz_i = np.count_nonzero(omega_i)
+        nz_j = np.count_nonzero(omega_j)
     shared = (nz_i+nz_j-np.count_nonzero(omega_i-omega_j))/2
     if verbose:
         print('nonzero entry number 1: ', nz_i)
@@ -50,13 +54,14 @@ if __name__ == '__main__':
     # main()
     # '''
     import pickle
-    with open('data-utility/syn_sf_sf_1.pkl', 'rb') as f:
-        omega1 = pickle.load(f)['W'].T
+    with open('data-utility/syn_sf_CGGM.pkl', 'rb') as f:
+        omega1 = pickle.load(f)['Theta']
         print(np.count_nonzero(omega1))
     # omega1 = np.load('fs_results/0.07_train_LANGUAGE_WM.npy')[:, 3403:]
-    omega2 = np.load('fs_results/0.000095_train_syn_sf_sf_1.npy')[:, 3403:]
-    # omega2 = np.load('fs_results/dir_reg_5.7e-06_syn_sf_sf_4.npy')
+    # omega2 = np.load('fs_results/0.000095_train_syn_sf_sf_1.npy')[:, 3403:]
+    # omega2 = np.load('fs_results/dir_reg_4e-07_syn_sf_sf_2.npy')
+    omega2 = np.load('tmpTheta.npy')
     print(np.count_nonzero(omega2))
 
-    nz_share(omega1, omega2)
+    nz_share(omega1, omega2, exclude_diag=False)
     # '''
