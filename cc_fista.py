@@ -120,6 +120,8 @@ class cc_fista(object):
 
 			if self.steptype == 3: # constant stepsize without inner loop
 				Xn = sthreshmat(Theta-tau*G, tau, self.LambdaMat)
+				Wn = self.S @ Xn
+				hn = pseudol(Xn,Wn)
 				# print("Xn="); print(Xn)
 			else:
 				while True:
@@ -172,7 +174,10 @@ class cc_fista(object):
 			h = hn
 			G = Gn
 			f = h + (abs(Xn)*self.LambdaMat).sum()
-			if v: print('f:', f)
+			if v: 
+				print('f (total objective):', f)
+				print('h (likelihood):', h)
+				print('lasso term:', (abs(Xn)*self.LambdaMat).sum())
 			itr += 1
 			cur_err = subgnorm/Xnnorm
 			if v: print('err',cur_err)
@@ -325,7 +330,7 @@ def test_synthetic():
 		print("Loaded ... Groundtruth Omega:")
 		print(Omg)
 	# infer
-	fi = cc_fista(D,0.175,v=True, maxit=300, steptype=3, const_ss=0.1)
+	fi = cc_fista(D,0.1,v=True, maxit=30, steptype=3, const_ss=0.1)
 	invcov = fi.infer()
 	# output
 	print('omega:\n', np.round(Omg,3))
@@ -334,6 +339,6 @@ def test_synthetic():
 
 if __name__ == '__main__':
 	
-	np.set_printoptions(precision=2)
+	np.set_printoptions(formatter={'float': '{: 0.2f}'.format})
 	# test()
 	test_synthetic() # more complicated and valid synthetic dataset

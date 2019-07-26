@@ -106,13 +106,13 @@ class cscc_fista(object):
         self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
 
-        no_constraints = True
+        no_constraints = False
         if not no_constraints:
             # Use inner stage to compute current optimal B.
             # You can use CVX library to check the correctness of
             # our FISTA implementation of inner problem solver.
-            B   = self.solver_linfty()
-            # B   = self.solver_linfty_cvx()
+            # B   = self.solver_linfty()
+            B   = self.solver_linfty_cvx()
             np.fill_diagonal(B, 0)
 
             # proximal operator of convex set constraint
@@ -122,7 +122,7 @@ class cscc_fista(object):
             Omg = W * self.pMat + np.diag(np.diag(self.A))
         
         else:
-            # print("No constraint is applied.")
+            print("No constraint is applied.")
             LambdaMat = self.p_lambda * np.ones((self.num_var, self.num_var))
             np.fill_diagonal(LambdaMat, 0)
             Omg = np.sign(self.A) * np.maximum(abs(self.A)-tau*LambdaMat, 0.0)
@@ -239,8 +239,8 @@ class cscc_fista(object):
             # end of else
             if self.verbose:
                 print("\n- - - OUTER problem solution UPDATED - - -\n" + \
-                    "1st term: "+"{:.10f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
-                    " | 2nd term: "+"{:.10f}".format((Omg_n.transpose()*SOmg_n).sum()))
+                    "1st term: "+"{:.6f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
+                    " | 2nd term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()))
 
             # FISTA momentum update step
             alpha_n = (1 + sqrt(1 + 4*(alpha**2)))/2
@@ -271,7 +271,7 @@ class cscc_fista(object):
             # won't be used, just for printing
             # f       = h + (abs(Omg_n)).sum()
 
-            # compute subgradient error
+            # compute subgradient error:
             # 1. As Omg_n has been located in the constrained convex set, it is
             # straightforward to compute subgradient at Omg_n
             # 2. The following code actually computes subgradient at updated 
@@ -288,7 +288,8 @@ class cscc_fista(object):
                 # print("updated Theta:"); print(Th)
                 print("error: "+"{:.2f}".format(cur_err)+\
                     ", subg norm:"+"{:.2f}".format(norm(subg))+\
-                    ", h function value:"+"{:.10f}".format(h))
+                    "\nh function value:"+"{:.6f}".format(h)+\
+                    ", h function comparable value:"+"{:.6f}".format(h/2))
                 # if np.isnan(h): sys.exit()
 
             # check termination condition:
@@ -397,7 +398,7 @@ class cscc_fista(object):
 
         # end of (while loop)
         if self.verbose_inn:
-            print("optimal value:", g)
+            print("optimal value of g:", g)
             print("solution B_x: "); print(B)
 
         return B_n
@@ -482,13 +483,18 @@ def test_synthetic(syndata_file):
     print(Omg)
     
     # partial correlation graph estimation
-    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=100,
-                    step_type_out = 3, const_ss_out = 0.2,
-                    p_lambda=0.25, p_tau=0.5, verbose=True, verbose_inn=True)
+    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=50,
+                    step_type_out = 2, const_ss_out = 0.2, p_gamma=0.01,
+                    p_lambda=0.2, p_tau=0.2, verbose=True, verbose_inn=True)
     Omg_hat  = problem.solver_convset()
 
     # output results
-    print('non-overlap nonzero entry count: ', np.count_nonzero(Omg_hat))
+    print("Groundtruth Omega:")
+    print(Omg)
+    print('nonzero entry count: ', np.count_nonzero(Omg))
+    print("Inferred Omega:")
+    print(Omg_hat)
+    print('nonzero entry count: ', np.count_nonzero(Omg_hat))
     return
 
 
