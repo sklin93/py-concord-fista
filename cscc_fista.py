@@ -1,6 +1,7 @@
 import csv
 import numpy as np
 import cvxpy as cvx
+import sys, os, pickle, argparse
 
 from math import sqrt
 from scipy import sparse
@@ -8,7 +9,7 @@ from scipy.stats import ortho_group
 from scipy.linalg import norm, inv
 from pprint import pprint
 
-import sys, os, pickle
+
 
 
 class cscc_fista(object):
@@ -151,10 +152,12 @@ class cscc_fista(object):
         prob.solve(verbose=False)
         # print("Is this problem DGP?", prob.is_dgp())
 
-        print("\n- - - solving inner problem with CVXPY - - - ")
-        # print("status:", prob.status)
-        print("optimal value:", prob.value)
-        print("solution B_x: "); print(B.value)
+        if self.verbose_inn:
+            print("\n- - - solving inner problem with CVXPY - - - ")
+            # print("status:", prob.status)
+            print("optimal value:", prob.value)
+            print("solution B_x: "); print(B.value)
+
         return B.value
 
     def update_linfty(self, Th_, G_, kappa):
@@ -207,7 +210,6 @@ class cscc_fista(object):
 
             if self.verbose: 
                 print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
-                print("\n- - - OUTER problem solution UPDATING - - -")
 
             # constant step length
             if self.step_type_out == 3:
@@ -290,7 +292,9 @@ class cscc_fista(object):
                     ", subg norm:"+"{:.2f}".format(norm(subg))+\
                     "\nh function value:"+"{:.6f}".format(h)+\
                     ", h function comparable value:"+"{:.6f}".format(h/2))
-                # if np.isnan(h): sys.exit()
+                print("Inferred Omega:")
+                print(Omg_n)
+                if np.isnan(h): sys.exit()
 
             # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
@@ -474,7 +478,7 @@ def generate_synthetic(syndata_file):
     return
 
 
-def test_synthetic(syndata_file):
+def test_synthetic(syndata_file, args):
 
     print("Loading synthetic dataset ... \n")
     with open(syndata_file, 'rb') as p:
@@ -483,9 +487,10 @@ def test_synthetic(syndata_file):
     print(Omg)
     
     # partial correlation graph estimation
-    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=50,
-                    step_type_out = 2, const_ss_out = 0.2, p_gamma=0.01,
-                    p_lambda=0.2, p_tau=0.2, verbose=True, verbose_inn=True)
+    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=20,
+                    step_type_out = 0, const_ss_out = 0.15, p_gamma=0.1,
+                    p_lambda=0.2, p_tau=0.2, TOL=1E-3, TOL_inn=1E-3,
+                    verbose=args.outer_verbose, verbose_inn=args.inner_verbose)
     Omg_hat  = problem.solver_convset()
 
     # output results
@@ -499,14 +504,37 @@ def test_synthetic(syndata_file):
 
 
 
-if __name__ == "__main__":
+def main(args):
 
     np.set_printoptions(formatter={'float': '{: 0.2f}'.format})
 
-    syndata_file = 'data-utility/syn.pkl'
-    if not os.path.isfile(syndata_file):
-        print("Generating synthetic dataset ... \n")
-        generate_synthetic(syndata_file)
+    if args.generate_synthetic:
 
-    test_synthetic(syndata_file)
+        syndata_file = args.synthetic_dir
+        if not os.path.isfile(syndata_file):
+            print("Generating synthetic dataset ... \n")
+            generate_synthetic(syndata_file)
+
+    else:
+        syndata_file = 'data-utility/syn.pkl'
+        test_synthetic(syndata_file, args)
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Arguments for Constrained CONCORD.')
     
+    parser.add_argument('--generate_synthetic', default=False, action='store_true',
+                        help='Whether to generate a new synthetic dataset')
+    parser.add_argument('--synthetic_dir', type=str, default='data-utility/new_syn.pkl',
+                        help='File path to the new synthetic dataset')
+    parser.add_argument('--input_dim', type=int, default=7,
+                        help='Number of dimensions for input variables')
+
+    parser.add_argument('--inner_verbose', default=False, action='store_true',
+                        help='Whether to display optimization updates of inner loop')
+    parser.add_argument('--outer_verbose', default=True, action='store_true',
+                        help='Whether to display optimization updates of outer loop')
+
+    args = parser.parse_args()
+    main(args)
