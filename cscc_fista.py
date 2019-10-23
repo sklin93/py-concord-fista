@@ -9,6 +9,9 @@ from scipy.stats import ortho_group
 from scipy.linalg import norm, inv
 from pprint import pprint
 
+import matplotlib.pyplot as plt
+
+
 
 
 
@@ -19,10 +22,13 @@ class cscc_fista(object):
         p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=300, TOL=1e-5, 
         p_tau=1, c_outer=0.9, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
         verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
-        c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False):
+        c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
+        no_constraints=False, inner_cvx_solver=False):
 
         super(cscc_fista, self).__init__()
         self.record      = record
+        self.no_constraints = no_constraints
+        self.inner_cvx_solver = inner_cvx_solver
 
         # inout parameters of primal problem
         self.S           = D.copy() if sample_cov else self.get_sample_cov(D)
@@ -107,13 +113,14 @@ class cscc_fista(object):
         self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
 
-        no_constraints = False
-        if not no_constraints:
+        if not self.no_constraints:
             # Use inner stage to compute current optimal B.
             # You can use CVX library to check the correctness of
             # our FISTA implementation of inner problem solver.
-            # B   = self.solver_linfty()
-            B   = self.solver_linfty_cvx()
+            if self.inner_cvx_solver:
+                B = self.solver_linfty_cvx()
+            else:
+                B = self.solver_linfty()
             np.fill_diagonal(B, 0)
 
             # proximal operator of convex set constraint
@@ -123,7 +130,7 @@ class cscc_fista(object):
             Omg = W * self.pMat + np.diag(np.diag(self.A))
         
         else:
-            print("No constraint is applied.")
+            # print("No constraint is applied.")
             LambdaMat = self.p_lambda * np.ones((self.num_var, self.num_var))
             np.fill_diagonal(LambdaMat, 0)
             Omg = np.sign(self.A) * np.maximum(abs(self.A)-tau*LambdaMat, 0.0)
@@ -199,6 +206,12 @@ class cscc_fista(object):
         self.A   = Th - self.p_tau * G
         self.A_X = self.A.copy()
 
+        plt.ion() ## Note this correction
+        plt.figure()
+        plot_x=list()
+        plot_y=list()
+        # plt.axis([0, self.MAX_ITR, 0,1])
+
         # looping for optimization steps
         loop  = True
         itr   = itr_back = iter_diag = 0
@@ -240,9 +253,13 @@ class cscc_fista(object):
                 # end of (while True)
             # end of else
             if self.verbose:
+                Omg_x = Omg_n.copy()
+                np.fill_diagonal(Omg_x, 0)
+                f_n = h_n+self.p_lambda*np.linalg.norm(Omg_x,1)
                 print("\n- - - OUTER problem solution UPDATED - - -\n" + \
-                    "1st term: "+"{:.6f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
-                    " | 2nd term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()))
+                    "1st term: "+"{:.6f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
+                    " | 2nd term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
+                    " | objective: "+"{:.6f}".format(f_n))
 
             # FISTA momentum update step
             alpha_n = (1 + sqrt(1 + 4*(alpha**2)))/2
@@ -291,10 +308,17 @@ class cscc_fista(object):
                 print("error: "+"{:.2f}".format(cur_err)+\
                     ", subg norm:"+"{:.2f}".format(norm(subg))+\
                     "\nh function value:"+"{:.6f}".format(h)+\
-                    ", h function comparable value:"+"{:.6f}".format(h/2))
+                    "\nh function comparable value:"+"{:.6f}".format(h/2))
                 print("Inferred Omega:")
                 print(Omg_n)
+                print('nonzero entry count: ', np.count_nonzero(Omg_n))
                 if np.isnan(h): sys.exit()
+            
+            plot_x.append(itr) 
+            plot_y.append(f_n) 
+            plt.plot(plot_x, plot_y, 'bo-')
+            plt.show(block=False)
+            plt.pause(0.0001)
 
             # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
@@ -303,9 +327,9 @@ class cscc_fista(object):
                 with open('itrloss_' + str(self.p_lambda)+'.csv', 'a') as f:
                     fwriter = csv.writer(f)
                     fwriter.writerow([itr] + [cur_err])
-
         # end of (while loop)
 
+        plt.show(block=True)
         self.result = Omg_n.copy()
         return Omg_n
     # end of solver_convset
@@ -430,6 +454,7 @@ def create_sparse_mat(num_var):
     nnz_index.sort()
 
     # generate inverse covariance matrix
+
     cov_vec   = np.random.rand(num_edge) * 0.3 + 0.7
     Omg = set_mat_from_triu(cov_vec, num_var, nnz_index)
 
@@ -487,14 +512,17 @@ def test_synthetic(syndata_file, args):
     print(Omg)
     
     # partial correlation graph estimation
-    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, MAX_ITR=20,
-                    step_type_out = 0, const_ss_out = 0.15, p_gamma=0.1,
-                    p_lambda=0.2, p_tau=0.2, TOL=1E-3, TOL_inn=1E-3,
-                    verbose=args.outer_verbose, verbose_inn=args.inner_verbose)
+    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, 
+                    MAX_ITR=args.MAX_ITR,
+                    step_type_out = args.step_type_out, const_ss_out = args.const_ss_out, 
+                    p_gamma=args.p_gamma, p_lambda=args.p_lambda, p_tau=args.p_tau, 
+                    TOL=args.TOL, TOL_inn=args.TOL_inn,
+                    verbose=args.outer_verbose, verbose_inn=args.inner_verbose,
+                    no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver)
     Omg_hat  = problem.solver_convset()
 
     # output results
-    print("Groundtruth Omega:")
+    print("\n\n= = = Finished = = =\nGroundtruth Omega:")
     print(Omg)
     print('nonzero entry count: ', np.count_nonzero(Omg))
     print("Inferred Omega:")
@@ -515,9 +543,11 @@ def main(args):
             print("Generating synthetic dataset ... \n")
             generate_synthetic(syndata_file)
 
-    else:
-        syndata_file = 'data-utility/syn.pkl'
+    if args.demo:
+        # syndata_file = 'data-utility/syn.pkl'
+        syndata_file = args.synthetic_dir
         test_synthetic(syndata_file, args)
+
 
 
 if __name__ == "__main__":
@@ -531,10 +561,38 @@ if __name__ == "__main__":
     parser.add_argument('--input_dim', type=int, default=7,
                         help='Number of dimensions for input variables')
 
+    # Parameters of algorithm
+    parser.add_argument('--MAX_ITR', type=int, default=20,
+                        help='Maximum iteration of outer loop')
+    parser.add_argument('--MAX_ITR_inn', type=int, default=50,
+                        help='Maximum iteration of inner loop')
+    parser.add_argument('--step_type_out', type=int, default=3,
+                        help='Type of step length setting')
+    parser.add_argument('--const_ss_out', type=float, default=0.1,
+                        help='Constant step length')
+    parser.add_argument('--p_gamma', type=float, default=0.1,
+                        help='gamma: penalty parameter in proximal operator')
+    parser.add_argument('--p_lambda', type=float, default=0.2,
+                        help='lambda: penalty parameter for l_1')
+    parser.add_argument('--p_tau', type=float, default=0.2,
+                        help='tau: step length')
+    parser.add_argument('--TOL', type=float, default=1e-3,
+                        help='Tolerance in outer loop')
+    parser.add_argument('--TOL_inn', type=float, default=1e-2,
+                        help='Tolerance in inner loop')
+
+    # Verbose
     parser.add_argument('--inner_verbose', default=False, action='store_true',
                         help='Whether to display optimization updates of inner loop')
     parser.add_argument('--outer_verbose', default=True, action='store_true',
                         help='Whether to display optimization updates of outer loop')
+
+    # Options of algorithm, use to compare with standard setting
+    parser.add_argument('--inner_cvx_solver', default=False, action='store_true',
+                        help='Use cvx solver in inner loop.')
+    parser.add_argument('--no_constraints', default=False, action='store_true', 
+                        help='Solve the problem with no constraints.')
+    parser.add_argument('--demo', default=False, action='store_true', help='Show demo')    
 
     args = parser.parse_args()
     main(args)
