@@ -362,7 +362,8 @@ class cscc_fista(object):
                     pickle.dump(plot_data, f)
                 print('dumping records:'+label)
          # end of (while loop)
-
+        
+        plt.show(block=True)
         self.result = Omg_n.copy()
         return Omg_n, label
     # end of solver_convset
@@ -568,7 +569,13 @@ def test_synthetic(syndata_file, args):
 
     # plot with past records
     if args.plot_past_records:
-        record_list = [label, "cvx_lg(0.2,0.1)_ITR(35,100)_step(3,0.15)", "unconstrained_lg(0.2,0.1)_ITR(35,100)_step(3,0.15)", ]
+        
+        # record_list = [label, \
+        #     "syn_100_unconstrained_lg(0.2,0.1)_ITR(50,100)_step(3,0.15)", \
+        #     "syn_100_cvx_lg(0.2,0.1)_ITR(50,100)_step(3,0.15)"]
+        record_list = [label, \
+            "syn_100_lg(0.2,0.1)_ITR(50,100)_step(3,0.15)", \
+            "syn_100_lg(0.2,0.1)_ITR(50,100)_step(3,0.25)"]
         plot_with_records(record_list)
     return
 

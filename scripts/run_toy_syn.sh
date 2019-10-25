@@ -8,4 +8,4 @@ python cscc_fista.py \
 --p_gamma 0.1 --p_lambda 0.2 \
 --TOL 1e-3 --TOL_inn 1e-2 \
 --synthetic_dir 'data-utility/syn.pkl' \
---demo #--plot_past_records
+--demo --plot_past_records

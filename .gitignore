@@ -17,3 +17,6 @@ preproc/log1
 # data-utility/
 *file_syn_sf_*
 data-utility/syn_sf_*.pkl
+record/*.pkl
+record/*.csv
+record/*.txt
