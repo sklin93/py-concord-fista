@@ -22,18 +22,20 @@ from matplotlib.pyplot import cm
 class cscc_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 
-    def __init__(self, D, num_var, sample_cov=False, record=True, pMat=None, 
+    def __init__(self, D, num_var, sample_cov=False, pMat=None, 
         p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=300, TOL=1e-5, 
         p_tau=1, c_outer=0.9, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
         verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
         c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
-        plot_in_loop=True, no_constraints=False, inner_cvx_solver=False):
+        plot_in_loop=True, no_constraints=False, inner_cvx_solver=False,
+        record=True, record_label="default"):
 
         super(cscc_fista, self).__init__()
-        self.record      = record
+        self.record         = record
+        self.record_label   = record_label
         self.no_constraints = no_constraints
         self.inner_cvx_solver = inner_cvx_solver
-        self.plot_in_loop = plot_in_loop
+        self.plot_in_loop   = plot_in_loop
 
         # inout parameters of primal problem
         self.S           = D.copy() if sample_cov else self.get_sample_cov(D)
@@ -79,13 +81,13 @@ class cscc_fista(object):
 
     def generate_label(self):
 
-        label = ""
+        label = self.record_label
         if self.inner_cvx_solver:
-            label += "cvx_"
+            label += "_cvx"
         if self.no_constraints:
-            label += "unconstrained_"
+            label += "_unconstrained"
 
-        label +=  "lg(" + str(self.p_lambda) + "," + str(self.p_gamma) + ")" \
+        label +=  "_lg(" + str(self.p_lambda) + "," + str(self.p_gamma) + ")" \
                 + "_ITR(" + str(self.MAX_ITR) + "," + str(self.MAX_ITR_inn) + ")" 
         if self.step_type_out == 3:
             label += "_step(" + str(self.step_type_out) + "," + str(self.const_ss_out) + ")" 
@@ -115,7 +117,9 @@ class cscc_fista(object):
         """
         # for the gradient and likelihood, should we use log(abs(det))?
         # Accelerate via equality: tr(A.transpose()@A) = (A*A).sum()
+        # print(Omg.diagonal())
         return -2 * np.log(Omg.diagonal()).sum() + (Omg.transpose()*SOmg).sum()
+        # return - np.log(abs(np.diag(np.diag(Omg)))) + (Omg.transpose()*SOmg).sum()
 
     def likelihood_linfty(self, W):
         """ INNER stage objective 
@@ -152,7 +156,7 @@ class cscc_fista(object):
             Omg = W * self.pMat + np.diag(np.diag(self.A))
         
         else:
-            # print("No constraint is applied.")
+            print("~ ~ ~ No constraint is applied.")
             LambdaMat = self.p_lambda * np.ones((self.num_var, self.num_var))
             np.fill_diagonal(LambdaMat, 0)
             Omg = np.sign(self.A) * np.maximum(abs(self.A)-tau*LambdaMat, 0.0)
@@ -493,12 +497,11 @@ def create_sparse_mat(num_var):
 
     return [Omg, pMat]
 
-def generate_synthetic(syndata_file):
-
-    num_var   = 7    # number of variables
-    num_smp   = 200  # number of samples
-    pct_nnz   = 0.2  # percentage of non-zero entries in L matrix
-    base_nnz  = 0.7  # base value of non-zero entries in L matrix
+def generate_synthetic(syndata_file, num_var = 7, num_smp = 200, pct_nnz = 0.2, base_nnz = 0.7):
+    """ num_var   = 7    # number of variables
+        num_smp   = 200  # number of samples
+        pct_nnz   = 0.2  # percentage of non-zero entries in L matrix
+        base_nnz  = 0.7  # base value of non-zero entries in L matrix """
 
     # randomly select a certain number of edges
     # as non-zeros in partial correlation graph
@@ -514,6 +517,9 @@ def generate_synthetic(syndata_file):
     np.fill_diagonal(Chol, 1)
     Omg  = Chol @ Chol.transpose()
     print("triu-nonzeros of Omg: " + str((np.count_nonzero(Omg)-num_var)/2.0))
+    Omg = Omg / np.max(Omg)
+    np.fill_diagonal(Omg, 1)
+    print("positive definiteness check: " + str(np.all(np.linalg.eigvals(Omg) > 0)))
 
     # create convex set mask
     pMat = Omg.copy()
@@ -535,6 +541,7 @@ def generate_synthetic(syndata_file):
 def test_synthetic(syndata_file, args):
 
     print("Loading synthetic dataset ... \n")
+    record_label=os.path.splitext(os.path.basename(syndata_file))[0]
     with open(syndata_file, 'rb') as p:
         (Omg, Sig, D, pMat, num_var, num_smp) = pickle.load(p)
     print("Loaded ... Groundtruth Omega:")
@@ -547,7 +554,8 @@ def test_synthetic(syndata_file, args):
                     p_gamma=args.p_gamma, p_lambda=args.p_lambda, p_tau=args.p_tau, 
                     TOL=args.TOL, TOL_inn=args.TOL_inn,
                     verbose=args.outer_verbose, verbose_inn=args.inner_verbose,
-                    no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver)
+                    no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
+                    record_label=record_label)
     Omg_hat, label  = problem.solver_convset()
 
     # output results
@@ -562,8 +570,9 @@ def test_synthetic(syndata_file, args):
     if args.plot_past_records:
         record_list = [label, "cvx_lg(0.2,0.1)_ITR(35,100)_step(3,0.15)", "unconstrained_lg(0.2,0.1)_ITR(35,100)_step(3,0.15)", ]
         plot_with_records(record_list)
-
     return
+
+
 
 def plot_with_records(record_list):
     
@@ -581,7 +590,6 @@ def plot_with_records(record_list):
     
     plt.legend()
     plt.show(block=True)
-    
     return
 
 
@@ -591,11 +599,11 @@ def main(args):
     np.set_printoptions(formatter={'float': '{: 0.2f}'.format})
 
     if args.generate_synthetic:
-
         syndata_file = args.synthetic_dir
-        if not os.path.isfile(syndata_file):
+        if not os.path.isfile(syndata_file) or args.overwrite:
             print("Generating synthetic dataset ... \n")
-            generate_synthetic(syndata_file)
+            generate_synthetic(syndata_file, args.num_var, args.num_smp, \
+                                             args.pct_nnz, args.base_nnz)
 
     if args.demo:
         # syndata_file = 'data-utility/syn.pkl'
@@ -610,10 +618,19 @@ if __name__ == "__main__":
     
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
                         help='Whether to generate a new synthetic dataset')
+    parser.add_argument('--overwrite', default=False, action='store_true',
+                        help='Whether to replace existing data')
     parser.add_argument('--synthetic_dir', type=str, default='data-utility/new_syn.pkl',
                         help='File path to the new synthetic dataset')
-    parser.add_argument('--input_dim', type=int, default=7,
+    parser.add_argument('--num_var', type=int, default=7,
                         help='Number of dimensions for input variables')
+    parser.add_argument('--num_smp', type=int, default=200,
+                        help='Number of samples in the generated synthetic dataset')
+    parser.add_argument('--pct_nnz', type=float, default=0.2,
+                        help='percentage of non-zero entries in L matrix')
+    parser.add_argument('--base_nnz', type=float, default=0.7,
+                        help='base value of non-zero entries in L matrix')
+
 
     # Parameters of algorithm
     parser.add_argument('--MAX_ITR', type=int, default=20,
