@@ -330,7 +330,7 @@ def test_synthetic():
 		print("Loaded ... Groundtruth Omega:")
 		print(Omg)
 	# infer
-	fi = cc_fista(D,0.1,v=True, maxit=30, steptype=3, const_ss=0.1)
+	fi = cc_fista(D,0.1,v=True, maxit=200, steptype=3, const_ss=0.005)
 	invcov = fi.infer()
 	# output
 	print('omega:\n', np.round(Omg,3))

@@ -10,6 +10,10 @@ from scipy.linalg import norm, inv
 from pprint import pprint
 
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
+
+
+
 
 
 
@@ -23,12 +27,13 @@ class cscc_fista(object):
         p_tau=1, c_outer=0.9, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
         verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
         c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
-        no_constraints=False, inner_cvx_solver=False):
+        plot_in_loop=True, no_constraints=False, inner_cvx_solver=False):
 
         super(cscc_fista, self).__init__()
         self.record      = record
         self.no_constraints = no_constraints
         self.inner_cvx_solver = inner_cvx_solver
+        self.plot_in_loop = plot_in_loop
 
         # inout parameters of primal problem
         self.S           = D.copy() if sample_cov else self.get_sample_cov(D)
@@ -71,6 +76,23 @@ class cscc_fista(object):
             if step_type_out is 3, use self.p_tau as constant step length in the outer stage; 
             if step_type_inn is 3, use self.p_kappa as constant step length in the inner stage.
         """
+
+    def generate_label(self):
+
+        label = ""
+        if self.inner_cvx_solver:
+            label += "cvx_"
+        if self.no_constraints:
+            label += "unconstrained_"
+
+        label +=  "lg(" + str(self.p_lambda) + "," + str(self.p_gamma) + ")" \
+                + "_ITR(" + str(self.MAX_ITR) + "," + str(self.MAX_ITR_inn) + ")" 
+        if self.step_type_out == 3:
+            label += "_step(" + str(self.step_type_out) + "," + str(self.const_ss_out) + ")" 
+        else:
+            label += "_step(" + str(self.step_type_out) + "," + str(self.p_tau) + ")"
+
+        return label
 
     def get_sample_cov(self, D):
         """ comupte sample covariance S from data matrix D.
@@ -200,17 +222,19 @@ class cscc_fista(object):
         # Theta & initial gradient
         Th   = self.Omg_init.copy()
         ThS  = Th @ self.S  # Theta*S or S*Theta
-        G = - np.diag(1.0/Th.diagonal()) + 0.5*(ThS + ThS.transpose())
+        G = 2 * (- np.diag(1.0/Th.diagonal()) + 0.5*(ThS + ThS.transpose()))
 
         # initial A
         self.A   = Th - self.p_tau * G
         self.A_X = self.A.copy()
 
-        plt.ion() ## Note this correction
-        plt.figure()
-        plot_x=list()
-        plot_y=list()
-        # plt.axis([0, self.MAX_ITR, 0,1])
+        if self.plot_in_loop:
+            plt.ion() ## Note this correction
+            plt.figure()
+
+        plot_data = {}
+        plot_data['x'] = list()
+        plot_data['y'] = list()
 
         # looping for optimization steps
         loop  = True
@@ -255,7 +279,7 @@ class cscc_fista(object):
             if self.verbose:
                 Omg_x = Omg_n.copy()
                 np.fill_diagonal(Omg_x, 0)
-                f_n = h_n+self.p_lambda*np.linalg.norm(Omg_x,1)
+                f_n = h_n + self.p_lambda * np.linalg.norm(Omg_x,1)
                 print("\n- - - OUTER problem solution UPDATED - - -\n" + \
                     "1st term: "+"{:.6f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
                     " | 2nd term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
@@ -314,24 +338,29 @@ class cscc_fista(object):
                 print('nonzero entry count: ', np.count_nonzero(Omg_n))
                 if np.isnan(h): sys.exit()
             
-            plot_x.append(itr) 
-            plot_y.append(f_n) 
-            plt.plot(plot_x, plot_y, 'bo-')
-            plt.show(block=False)
-            plt.pause(0.0001)
+            plot_data['x'].append(itr) 
+            plot_data['y'].append(f_n) 
+
+            if self.plot_in_loop:
+                plt.plot(plot_data['x'], plot_data['y'], 'bo-')
+                plt.show(block=False)
+                plt.pause(0.0001)
 
             # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
 
+            label = self.generate_label()
             if self.record:
-                with open('itrloss_' + str(self.p_lambda)+'.csv', 'a') as f:
+                with open('record/cscc-error_'+label+'.csv', 'a') as f:
                     fwriter = csv.writer(f)
                     fwriter.writerow([itr] + [cur_err])
-        # end of (while loop)
+                with open('record/cscc-figdata_'+label+'.pkl', 'wb') as f:
+                    pickle.dump(plot_data, f)
+                print('dumping records:'+label)
+         # end of (while loop)
 
-        plt.show(block=True)
         self.result = Omg_n.copy()
-        return Omg_n
+        return Omg_n, label
     # end of solver_convset
 
     def solver_linfty(self):
@@ -519,7 +548,7 @@ def test_synthetic(syndata_file, args):
                     TOL=args.TOL, TOL_inn=args.TOL_inn,
                     verbose=args.outer_verbose, verbose_inn=args.inner_verbose,
                     no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver)
-    Omg_hat  = problem.solver_convset()
+    Omg_hat, label  = problem.solver_convset()
 
     # output results
     print("\n\n= = = Finished = = =\nGroundtruth Omega:")
@@ -528,6 +557,31 @@ def test_synthetic(syndata_file, args):
     print("Inferred Omega:")
     print(Omg_hat)
     print('nonzero entry count: ', np.count_nonzero(Omg_hat))
+
+    # plot with past records
+    if args.plot_past_records:
+        record_list = [label, "cvx_lg(0.2,0.1)_ITR(35,100)_step(3,0.15)", "unconstrained_lg(0.2,0.1)_ITR(35,100)_step(3,0.15)", ]
+        plot_with_records(record_list)
+
+    return
+
+def plot_with_records(record_list):
+    
+    plt.ion()
+    plt.figure()
+    color = iter(cm.rainbow(np.linspace(0,1,len(record_list))))
+
+    for record_path in record_list:
+        print('plotting:' + record_path)
+        with open('record/cscc-figdata_'+record_path+'.pkl', 'rb') as f:
+            plot_data = pickle.load(f)
+        c = next(color)
+        plt.plot(plot_data['x'], plot_data['y'], c=c, marker='o', label=record_path)
+        plt.show(block=False)
+    
+    plt.legend()
+    plt.show(block=True)
+    
     return
 
 
@@ -586,6 +640,8 @@ if __name__ == "__main__":
                         help='Whether to display optimization updates of inner loop')
     parser.add_argument('--outer_verbose', default=True, action='store_true',
                         help='Whether to display optimization updates of outer loop')
+    parser.add_argument('--plot_past_records', default=False, action='store_true',
+                        help='Whether to plot loss with past runs')
 
     # Options of algorithm, use to compare with standard setting
     parser.add_argument('--inner_cvx_solver', default=False, action='store_true',
