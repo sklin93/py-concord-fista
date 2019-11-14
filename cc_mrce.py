@@ -1,7 +1,485 @@
+import numpy as np
+import time, pickle
+import cvxpy as cvx
+import sys, os, pickle, argparse, math
+
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
+
+class mrce(object):
+    """ MRCE: multivariate regression with covariance estimation """
+
+    def __init__(self, X, Y, Omg, lamb2, TOL_ep, \
+        max_itr=100, B_init=np.array([]), \
+        u_cache=False, verbose=True, matrix_form=True, stochastic=False, \
+        step_type=3, c=0.9, alpha=1, p_tau=0.7, const_ss=0.2):
+
+        self.X = X
+        self.Y = Y
+        self.Omg = Omg
+
+        self.lamb2 = lamb2
+        self.p = self.X.shape[1]
+        self.q = self.Y.shape[1]
+        self.n = self.X.shape[0]
+        self.TOL_ep = TOL_ep
+        self.max_itr = max_itr
+        
+        self.matrix_form = matrix_form
+        self.u_cache = u_cache
+        self.verbose = verbose
+        self.stochastic = stochastic
+
+        # set up parameters for FISTA
+        self.c         = c
+        self.alpha     = alpha
+        self.p_tau     = p_tau
+        self.step_type = step_type
+        self.const_ss  = const_ss
+
+        # initialization
+        if self.verbose: 
+            print("\n\n\n = = = MRCE B-step Initialization = = = ")
+        # compute S = X'X
+        t = time.time()
+        self.S = np.matmul(self.X.transpose(), self.X)
+        print("MRCE: S computed in {:.2e} s".format(time.time()-t))
+        # compute H = X'Y*Omega
+        t = time.time()
+        temp = np.matmul(self.X.transpose(), self.Y)
+        print("MRCE: H_0 computed in {:.2e} s".format(time.time()-t))
+        t = time.time()
+        self.H = np.matmul(temp, self.Omg)
+        print("MRCE: H computed in {:.2e} s".format(time.time()-t))
+        
+        # experimental:
+        # cache S[r,j]*Omg[k,c] for U computation
+        # but it will take too much memory
+        if u_cache:
+            self.SOmg = np.empty([self.p, self.q])
+
+        # compute ridge estimate of B
+        self.B_ridge = self.ridge_estimate()
+        # set initial value of B
+        if B_init.size == 0:
+            self.B_init = np.random.normal(0,1, (self.p, self.q))
+            # self.B = self.B_ridge
+        else:
+            self.B_init = B_init
+            
 
 
-def mrce_synthetic():
+    def ridge_estimate(self):
+        """ ridge estimate of B that is usedfor convergence test: 
+            B = (X'*X+lamb2*I)^-1*X'*Y """
+
+        try:
+           temp = np.linalg.inv(self.S + self.lamb2 * np.eye(self.p))
+        except np.linalg.LinAlgError as err:
+            if 'Singular matrix' in str(err):
+                print('Rdige estimate: singular matrix causes inverse failure. ')
+            else:
+                raise
+        B_ridge = np.matmul(temp, np.matmul(self.X.transpose(), self.Y)) 
+        return B_ridge
+
+
+    def likelihood_B(self, B):
+        """ compute the objective value of B-step in MRCE """
+
+        return np.trace( (1/self.n) * 
+                    np.matmul(
+                        np.matmul((self.Y-np.matmul(self.X,B)).transpose(), 
+                                  (self.Y-np.matmul(self.X,B))), 
+                        self.Omg)
+                ) + self.lamb2 * np.linalg.norm(B, 1)
+
+    def likelihood_B_wonorm(self, B):
+        """ compute the objective value of B-step in MRCE """
+
+        return np.trace( (1/self.n) * 
+                    np.matmul(
+                        np.matmul((self.Y-np.matmul(self.X,B)).transpose(), 
+                                  (self.Y-np.matmul(self.X,B))), 
+                        self.Omg)
+                )
+
+
+    def cvx_solver_B(self):
+        """ cvx solver for B-update """
+
+        print(self.p)
+        print(self.q)
+        B    = cvx.Variable((self.p,self.q))
+        loss = cvx.trace( (1/self.n) * 
+                    cvx.matmul(
+                        self.Omg,
+                        cvx.matmul( (self.Y-cvx.matmul(self.X,B)).T,
+                                    (self.Y-cvx.matmul(self.X,B)))   
+                    )
+                ) + self.lamb2 * cvx.norm(B, 1)
+        obj = cvx.Minimize(loss)
+        prob = cvx.Problem(obj)
+        prob.solve(verbose=True)
+
+        if self.verbose:
+            print("obj_B: {:.3e}".format(self.likelihood_B(B.value)))
+            print('nonzero entry count: ', np.count_nonzero(B.value))
+        return
+
+
+    def fista_solver_B(self):
+        """ FISTA for B update """
+
+        tau_n  = self.p_tau
+        alpha  = self.alpha
+
+        Lambda = self.lamb2 * np.ones(self.B_init.shape)
+        if self.step_type == 3:
+            tau_n = self.const_ss
+
+        # Omega initial likelihood
+        B  = self.B_init.copy()
+        h  = self.likelihood_B_wonorm(B)
+
+        # Theta & initial gradient
+        Th    = self.B_init.copy()
+        XYOmg = np.matmul(np.matmul(self.X.transpose(), self.Y), self.Omg)
+        G     = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
+
+        if self.verbose:
+            plt.ion() ## Note this correction
+            plt.figure()
+
+        plot_data = {}
+        plot_data['x'] = list()
+        plot_data['y'] = list()
+
+        # looping for optimization steps
+        loop  = True
+        itr   = itr_back = 0
+        h_n   = Q_n      = 0.0
+        while loop:
+            itr_back = 0
+            tau      = tau_n
+
+            if self.verbose: 
+                print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
+ 
+            # constant step length
+            if self.step_type == 3:
+
+                t = time.time()
+                G_n = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
+                print("MRCE: G_n computed in {:.2e} s".format(time.time()-t))
+                t = time.time()
+                A_n = Th - tau * G_n
+                print("MRCE: A_n computed in {:.2e} s".format(time.time()-t))
+                t = time.time()
+                B_n = np.sign(A_n) * np.maximum(abs(A_n)-tau*Lambda, 0.0)
+                print("MRCE: B_n computed in {:.2e} s".format(time.time()-t))
+                t = time.time()
+                h_n = self.likelihood_B_wonorm(B_n)
+                print("MRCE: h_n computed in {:.2e} s".format(time.time()-t))
+            # looping for adaptive step length as backtacking line search
+            else:
+                while True:
+                    if itr_back != 0:
+                        tau = tau * self.c
+                    if self.verbose: 
+                        print("\n\n\n\n = = = line search iteration "+str(itr_back)+" = = = ")
+                    G_n = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
+                    A_n = Th - tau * G_n
+                    B_n = np.sign(A_n) * np.maximum(abs(A_n)-tau*Lambda, 0.0)
+
+                    # check backtracking condition
+                    Step    = B_n - Th
+                    Q_n     = self.likelihood_B_wonorm(Th) + (Step*G).sum() + (1/(2*tau))*(np.linalg.norm(Step)**2) + np.linalg.norm(B_n, 1)
+                    h_n     = self.likelihood_B_wonorm(B_n)
+                    if h_n > Q_n: # sufficient descent condition
+                        itr_back += 1
+                    else:
+                        break
+                # end of (while True)
+            # end of else
+            if self.verbose:
+                f_n = h_n + self.lamb2 * np.linalg.norm(B_n,1)
+                print("\n- - - OUTER problem solution UPDATED - - -\n" + \
+                    "1st term: "+"{:.3e}".format(h_n) + \
+                    " | 2nd term: "+"{:.3e}".format(f_n-h_n) + \
+                    " | objective: "+"{:.3e}".format(f_n))
+
+            # FISTA momentum update step
+            alpha_n = (1 + math.sqrt(1 + 4*(alpha**2)))/2
+            Th  = B_n + ((alpha-1)/alpha_n) * (B_n - B)
+            # update gradient
+            G_n = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
+            # update tau for next opt iteration
+            if self.step_type == 0:
+                tau_n = 1
+            elif self.step_type == 1:
+                tau_n = tau
+            elif self.step_type == 2:
+                tau_n = (Step * Step).sum() / (Step * (G_n - G)).sum()
+                tau_n = tau if tau_n < 0.0 else tau_n
+
+            # update for next opt iteration
+            alpha = alpha_n
+            B     = B_n
+            h     = h_n
+            G     = G_n
+            itr  += 1
+
+            # won't be used, just for printing
+            # f       = h + (abs(Omg_n)).sum()
+
+            tmp       = G_n + np.sign(B_n) * Lambda # sign(Omg_n) or sign(Th)
+            subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
+            subg[B_n != 0] = tmp[B_n != 0]
+            cur_err   = np.linalg.norm(subg) / np.linalg.norm(B_n)
+
+            if self.verbose: 
+                print("error: "+"{:.2f}".format(cur_err)+\
+                    ", subg norm:"+"{:.2f}".format(np.linalg.norm(subg))+\
+                    "\nh function value:"+"{:.6f}".format(h))
+                print('nonzero entry count of B: ', np.count_nonzero(B_n))
+                if np.isnan(h): sys.exit()
+            
+            plot_data['x'].append(itr) 
+            plot_data['y'].append(f_n) 
+
+            if self.verbose:
+                plt.plot(plot_data['x'], plot_data['y'], 'bo-')
+                plt.show(block=False)
+                plt.pause(0.0001)
+
+            # check termination condition:
+            loop = itr < self.max_itr # and cur_err > self.TOL_ep
+
+         # end of (while loop)
+        
+        plt.show(block=True)
+        return B_n
 
 
 
+    def coordinate_solver_B(self):
+        """ cyclical-coordinate descent algorithm """
+
+        B = self.B_init.copy()
+        B_n = self.B_init.copy()
+
+        if self.verbose:
+            plt.ion() ## Note this correction
+            plt.figure()
+
+        plot_data = {}
+        plot_data['x'] = list()
+        plot_data['y'] = list()
+
+        loop = True
+        itr = 0
+        while loop:
+
+            if self.verbose: 
+                print("\n\n\n\n = = = B iteration "+str(itr)+" = = = ")
+            
+            if not self.u_cache:
+                t = time.time()
+                U = np.matmul(np.matmul(self.S, B), self.Omg)
+                print("MRCE: U computed in {:.2e} s".format(time.time()-t))
+            
+            if not self.matrix_form:
+                if not self.stochastic:
+                    print("cyclically updating B_n[r,c] ...")
+                    for r in range(self.p):
+                        for c in range(self.q):
+                            d = self.S[r,r] * self.Omg[c,c]
+                            U_n = np.matmul(np.matmul(self.S, B_n), self.Omg)
+                            temp = B_n[r,c] + (self.H[r,c] - U_n[r,c]) / d
+                            sthresh = abs(temp) - (self.n*self.lamb2)/d
+                            sthresh = 0 if sthresh < 0 else sthresh
+                            B_n[r,c] = np.sign(temp) * sthresh
+                else:
+                    print("randomly updating B_n[r,c] ...")
+                    for i in range(1000):
+                        r = np.random.randint(self.p)
+                        c = np.random.randint(self.q)
+                        d = self.S[r,r] * self.Omg[c,c]
+                        U_n = np.matmul(np.matmul(self.S, B_n), self.Omg)
+                        temp = B_n[r,c] + (self.H[r,c] - U_n[r,c]) / d
+                        sthresh = abs(temp) - (self.n*self.lamb2)/d
+                        sthresh = 0 if sthresh < 0 else sthresh
+                        B_n[r,c] = np.sign(temp) * sthresh
+            else:
+                D = np.matmul(np.diag(self.S)[:, np.newaxis], \
+                              np.diag(self.Omg)[:, np.newaxis].transpose())
+                temp = B + np.divide(self.H - U, D)
+                sthresh = np.abs(temp) - (self.n * self.lamb2) / D
+                sthresh[sthresh < 0] = 0
+                B_n = np.sign(temp) * sthresh
+
+            f_n = self.likelihood_B(B_n)
+            plot_data['x'].append(itr) 
+            plot_data['y'].append(f_n) 
+            if self.verbose:
+                plt.plot(plot_data['x'], plot_data['y'], 'bo-')
+                plt.show(block=False)
+                plt.pause(0.0001)
+
+            print("computing stopping criterion ...")
+            err_B = np.linalg.norm(np.abs(B - B_n), 1)
+            norm_B = np.linalg.norm(self.B_ridge, 1)
+            stop =  err_B < self.TOL_ep *  norm_B
+            itr  = itr + 1
+            B    = B_n
+
+            if self.verbose:
+                print("obj_B: {:.3e}".format(f_n))
+                print("err_B: {0:.3e}, norm_B: {1:.3e}".format(err_B, norm_B))
+                print('nonzero entry count: ', np.count_nonzero(B))
+
+            # if stop or itr > self.max_itr:
+            #     break
+            if itr > self.max_itr:
+                break
+
+        plt.show(block=True)
+        return B 
+
+
+
+class mrce_syn(object):
+    """ Generate synthetic dataset according to MRCE paper """
+
+    def __init__(self, p = 100, q = 100, n = 50, phi = 0.7, \
+        err_type = 0, rho = 0.5, Hurst = 0.9, success_prob_s1 = 0.2, success_prob_s2 = 0.2):
+
+        self.p = p
+        self.n = n
+        self.q = q 
+
+        # - - - baseline covariance value of X dimensions
+        self.phi = phi
     
+        # - - - Types of error covariance
+        # 0 -> AR(1)
+        # 1 -> Fractional Gaussian Noise (FGN) 
+        self.err_type = err_type
+
+        # - - - baseline covariance value in AR(1)
+        # ranging from 0 to 0.9
+        self.rho = rho
+
+        # - - - Hurst parameter in FGN
+        # cov and invcov are both dense
+        # ranging from 0.5 to 1
+        # 0.5 -> i.i.d sequence
+        # 1.0 -> perfectly correlated 
+        self.Hurst = Hurst
+        self.success_prob_s1 = success_prob_s1
+        self.success_prob_s2 = success_prob_s2
+
+        self.X = np.empty([self.n, self.p])
+        self.Y = np.empty([self.n, self.q])
+        self.E = np.empty([self.n, self.q])
+        self.B = np.empty([self.p, self.q])
+        self.Sigma_X = np.empty([self.p, self.p])
+        self.Sigma_E = np.empty([self.q, self.q])
+        
+        return
+
+    def generate(self):
+
+        # generate Sigma_X (p x p)
+        for i in range(self.p):
+            for j in range(self.p):
+                self.Sigma_X[i,j] = np.power(self.phi, np.abs(i-j)) 
+        # generate X (n x p)
+        self.X = np.random.multivariate_normal(np.zeros(self.p), self.Sigma_X, self.n)
+
+        # generate Sigma_E (q x q) 
+        if self.err_type == 0: 
+            # AR(1) error covariance
+            for i in range(self.q):
+                for j in range(self.q):
+                    self.Sigma_E[i,j] =  np.power(self.rho, np.abs(i-j))
+        elif self.err_type == 1:
+            # Fractional Gaussian Noise (FGN)
+            for i in range(self.q):
+                for j in range(self.q):
+                    self.Sigma_E[i,j] = 0.5 * ( np.power(np.abs(i-j)+1, 2*self.Hurst) 
+                                            - 2*np.power(np.power(i-j), 2*self.Hurst)
+                                            +   np.power(np.abs(i-j)-1, 2*self.Hurst) )
+        # generate error matrix E (n x q)
+        self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
+
+        # generate B
+        W = np.random.normal(0, 1, (self.p, self.p))
+        K = np.random.binomial(n=1, p=self.success_prob_s1, size=(self.p, self.p))
+        Q_idx = np.random.binomial(n=1, p=self.success_prob_s2, size=self.p)
+        Q = np.zeros((self.p, self.q))
+        Q[np.nonzero(Q_idx)[0],:] = 1
+        self.B = W * K * Q  # element-wise product
+
+        # generate Y
+        self.Y = np.matmul(self.X, self.B) + self.E
+        
+        return
+
+
+
+def test(args):
+
+
+    if args.generate_synthetic:
+        data = mrce_syn(p = 100, q = 100, n = 50, phi = 0.7, err_type = 0, rho = 0.5)
+        data.generate()
+        with open(args.synthetic_dir, "wb") as f:
+            pickle.dump(data, f) 
+    else: 
+        # use existing synthetic dataset
+        with open(args.synthetic_dir, 'rb') as f:
+            data = pickle.load(f)
+
+    print('input-output dimensions: {0:d}-{1:d}'.format(data.X.shape[1], data.Y.shape[1]))
+    print('nonzero B-entry count: ', np.count_nonzero(data.B))
+
+    Omg_ori = np.linalg.inv(data.Sigma_E)
+    print('nonzero Omg-entry count: ', np.count_nonzero(Omg_ori))
+    print('check non-negative definiteness: '+str(np.all(np.linalg.eigvals(Omg_ori) >= 0)))
+    
+    if args.CD:
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=1, TOL_ep=0.05, matrix_form=False, stochastic=False, max_itr=20)
+        print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
+        input('...')
+        problem.coordinate_solver_B()
+    elif args.FISTA:
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=1, TOL_ep=0.05, max_itr=50, step_type=3, c=0.5, p_tau=0.7, alpha=1, const_ss=0.02, B_init=data.B)
+        print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
+        input('...')
+        problem.fista_solver_B()
+
+    print('\n\n\nobjective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
+    print('nonzero B-entry count: ', np.count_nonzero(data.B))
+    input('...')
+
+    return
+
+
+if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description='Arguments for MRCE B-update.')
+    parser.add_argument('--generate_synthetic', default=False, action='store_true',
+                        help='Whether to generate a new synthetic dataset')
+    parser.add_argument('--synthetic_dir', type=str, default='data-utility/synB.pkl',
+                        help='File path to the new synthetic dataset')
+
+    parser.add_argument('--CD', default=False, action='store_true',
+                        help='Apply coordinate descent algorithm')
+    parser.add_argument('--FISTA', default=True, action='store_true',
+                        help='Apply FISTA algorithm')
+    
+    args = parser.parse_args()
+
+    test(args)

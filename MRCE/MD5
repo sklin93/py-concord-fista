@@ -1,0 +1,12 @@
+585f98db627cc19313d69d47a054105a *DESCRIPTION
+e064798f9e34393441c4f9a16359593a *NAMESPACE
+87670673b191ad13d2d2cb2c4d764bab *R/compute.fixed.R
+dbcb0b2f679503d1c6b6e89a602c8453 *R/compute.mrce.R
+b51132ee2b66627b018881daf0b3d7cb *R/mrce.R
+71c5dd5435a7647329722b61dd82894b *R/mrce.cv.R
+c406cfed0fd4c301adb2df7f321dee87 *R/rblasso.R
+892fe924714d1eff4ab6288dc2c5c604 *data/stock04.rda
+df9888e98b0c1c6817b61b64f9781b64 *man/MRCE-package.Rd
+43b397c3a459c19e1f0f4d60d69643d3 *man/mrce.Rd
+37d48ecb9edc8e78cb8df0db1e30ab60 *man/stock04.Rd
+57d945a57b1143e52830bfca4605fcf7 *src/mrce-solveb.c
