@@ -163,11 +163,11 @@ class mrce(object):
 
         plot_data = {}
         plot_data['x']     = list()
-        plot_data['y(B)']  = list()
-        plot_data['y(Th)'] = list()
+        plot_data['y(B)']  = list(); plot_data['y(Th)'] = list();   plot_data['y(A)'] = list()
+        plot_data['l1(B)'] = list(); plot_data['l1(Th)'] = list();  plot_data['l1(A)'] = list()
+        plot_data['h(B)']  = list(); plot_data['h(Th)'] = list();   plot_data['h(A)'] = list()
         plot_data['tau']   = list()
-        plot_data['subg']  = list()
-        plot_data['subg_diff'] = list()
+        plot_data['subg']  = list(); plot_data['subg_diff'] = list()
 
         # looping for optimization steps
         loop = True
@@ -182,18 +182,10 @@ class mrce(object):
  
             # constant step length
             if self.step_type == 3:
-                t = time.time()
                 G_n = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
-                print("MRCE: G_n computed in {:.2e} s".format(time.time()-t))
-                t = time.time()
                 A_n = Th - tau * G_n
-                print("MRCE: A_n computed in {:.2e} s".format(time.time()-t))
-                t = time.time()
                 B_n = np.sign(A_n) * np.maximum(abs(A_n)-tau*Lambda, 0.0)
-                print("MRCE: B_n computed in {:.2e} s".format(time.time()-t))
-                t = time.time()
                 h_n = self.likelihood_B_wonorm(B_n)
-                print("MRCE: h_n computed in {:.2e} s".format(time.time()-t))
 
             # looping for adaptive step length as backtacking line search
             else:
@@ -227,15 +219,16 @@ class mrce(object):
                         + ((A_n-Th)*G_n).sum()
             plot_data['subg_diff'].append(subg_diff)
             print("MRCE: check gradient correctness {:.3e}".format(subg_diff))
+            # compute directional derivatives
 
             if self.verbose:
                 f_n = h_n + self.lamb2 * np.linalg.norm(B_n,1)
                 print("\n- - - problem solution UPDATED - - -\n" + \
-                    "1st term (loss): "+"{:.3e}".format(h_n) + \
-                    " | 2nd term (regularizer): "+"{:.3e}".format(f_n-h_n) + \
-                    " | objective: "+"{:.3e}".format(f_n))
+                    " 1st term (loss): "+"{:.3e}".format(h_n) + \
+                    "\n 2nd term (regularizer): "+"{:.3e}".format(f_n-h_n) + \
+                    "\n objective: "+"{:.3e}".format(f_n))
 
-            # FISTA 
+            # - - - - FISTA - - - - 
             # momentum update step
             alpha_n = (1 + math.sqrt(1 + 4*(alpha**2)))/2
             Th  = B_n + ((alpha-1)/alpha_n) * (B_n - B)
@@ -257,41 +250,65 @@ class mrce(object):
             G     = G_n
             itr  += 1
             plot_data['x'].append(itr) 
-            plot_data['y(B)'].append(f_n) 
-            plot_data['y(Th)'].append(self.likelihood_B_wonorm(Th))
+            plot_data['y(A)'].append(self.likelihood_B(A_n))
+            plot_data['y(B)'].append(self.likelihood_B(B_n))
+            plot_data['y(Th)'].append(self.likelihood_B(Th))
+            plot_data['h(A)'].append(self.likelihood_B_wonorm(A_n))
+            plot_data['h(B)'].append(self.likelihood_B_wonorm(B_n))
+            plot_data['h(Th)'].append(self.likelihood_B_wonorm(Th))
+            plot_data['l1(A)'].append(self.lamb2 * np.linalg.norm(A_n,1))  
+            plot_data['l1(B)'].append(self.lamb2 * np.linalg.norm(B_n,1))  
+            plot_data['l1(Th)'].append(self.lamb2 * np.linalg.norm(Th,1))
 
             # compute stopping criterion
             tmp       = G_n + np.sign(B_n) * Lambda # sign(Omg_n) or sign(Th)
             subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
             subg[B_n != 0] = tmp[B_n != 0]
-            cur_err   = np.linalg.norm(G_n)
-            # cur_err   = np.linalg.norm(subg) / np.linalg.norm(B_n)
+            # cur_err   = np.linalg.norm(G_n)
+            cur_err   = np.linalg.norm(subg) / np.linalg.norm(B_n)
             # cur_err   = np.linalg.norm(B_n + np.sign(B_n) * Lambda) / np.linalg.norm(B_n)
             plot_data['subg'].append(cur_err)
 
             if self.verbose: 
-                print("error: "+"{:.2f}".format(cur_err)+\
-                    ", subg norm:"+"{:.2f}".format(np.linalg.norm(subg))+\
-                    "\nh function value:"+"{:.6f}".format(h))
+                print("error: "+"{:.3e}".format(cur_err)+\
+                    "\nsubg norm:"+"{:.3e}".format(np.linalg.norm(subg))+\
+                    "\nh function value:"+"{:.3e}".format(h))
                 print('nonzero entry count of B: ', np.count_nonzero(B_n))
                 if np.isnan(h): sys.exit()
 
-                plt.figure(1,figsize=(10,7))
-                plt.subplot(221); plt.title('objective value')
-                plt.plot(plot_data['x'], plot_data['y(B)'], 'b.--')
-                plt.plot(plot_data['x'], plot_data['y(Th)'], 'c.--')
+                plt.figure(1,figsize=(12, 7))
+                plt.subplot(231); plt.title('objective value')
+                plt.plot(plot_data['x'], plot_data['y(A)'], 'r.-', label='y(A)')
+                plt.plot(plot_data['x'], plot_data['y(B)'], 'b.-', label='y(B)')
+                plt.plot(plot_data['x'], plot_data['y(Th)'], 'c.-', label='y(Th)')
                 plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+                if itr == 1: plt.legend(); 
 
-                plt.subplot(222); plt.title('step size')
+                plt.subplot(232); plt.title('1st term value')
+                plt.plot(plot_data['x'], plot_data['h(A)'], 'r.--', label='h(A)')
+                plt.plot(plot_data['x'], plot_data['h(B)'], 'b.--', label='h(B)')
+                plt.plot(plot_data['x'], plot_data['h(Th)'], 'c.--', label='h(Th)')
+                plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+                if itr == 1: plt.legend(); 
+
+                plt.subplot(233); plt.title('penalty term value')
+                plt.plot(plot_data['x'], plot_data['l1(A)'], 'r.--', label='l1(A)')
+                plt.plot(plot_data['x'], plot_data['l1(B)'], 'b.--', label='l1(B)')
+                plt.plot(plot_data['x'], plot_data['l1(Th)'], 'c.--', label='l1(Th)')
+                plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+                if itr == 1: plt.legend(); 
+
+                plt.subplot(234); plt.title('step size')
                 plt.plot(plot_data['x'], plot_data['tau'], 'r.--')
                 plt.show(block=False); plt.pause(0.01)
 
-                plt.subplot(223); plt.title('norm of subgradient')
+                plt.subplot(235); plt.title('norm of subgradient')
                 plt.plot(plot_data['x'], plot_data['subg'], 'k.--')
                 plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
 
-                plt.subplot(224); plt.title('check correctness of gradient')
-                plt.plot(plot_data['x'], plot_data['subg_diff'], 'm.--')
+                plt.subplot(236); plt.title('check correctness of gradient')
+                plt.plot(plot_data['x'], plot_data['subg_diff'], 'b.--')
+                plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
                 plt.show(block=False); plt.pause(0.01)
             
                 if np.mod(itr, 10) == 0:
@@ -481,6 +498,7 @@ def test(args):
 
 
     if args.generate_synthetic:
+        # generat a new synthetic dataset
         data = mrce_syn(p = 500, q = 1000, n = 200, phi = 0.7, err_type = 0, rho = 0.5)
         data.generate()
         with open(args.synthetic_dir, "wb") as f:
@@ -491,6 +509,8 @@ def test(args):
             data = pickle.load(f)
 
     if 'data' in locals():
+        print('= = = dataset loaded = = =')
+        print('sample size: {0:d}'.format(data.n))
         print('input-output dimensions: {0:d}-{1:d}'.format(data.X.shape[1], data.Y.shape[1]))
         print('nonzero B-entry count: ', np.count_nonzero(data.B))
 
@@ -502,16 +522,18 @@ def test(args):
         G = (2/data.n) * (np.matmul(np.matmul(data.X.transpose(), data.X), np.matmul(data.B, Omg_ori)) - XYOmg)
         G_wnorm = G + args.p_lambda * np.sign(data.B)
         # plot_grad_hist(G, G_wnorm)
+
+    B0 = data.B if args.gt_init else np.array([])
         
     if args.CD:
-        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, matrix_form=False, stochastic=False, max_itr=20)
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, matrix_form=args.max_itr, stochastic=False, max_itr=20, B_init=B0)
         print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
-        input('...')
+        input('...press any key...')
         B = problem.coordinate_solver_B()
     elif args.FISTA:
-        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, max_itr=100, step_type=2, c=0.5, p_tau=0.7, alpha=1, const_ss=0.01, B_init = data.B)
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, max_itr=args.max_itr, step_type=2, c=0.5, p_tau=0.7, alpha=1, const_ss=0.01, B_init=B0)
         print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
-        input('...')
+        input('...press any key...')
         B = problem.fista_solver_B()
 
     if 'problem' in locals():
@@ -522,6 +544,8 @@ def test(args):
 
 
 if __name__ == "__main__":
+
+    # example: python cc_mrce.py --synthetic_dir 'data-utility/synB-500.pkl' --FISTA
     
     parser = argparse.ArgumentParser(description='Arguments for MRCE B-update.')
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
@@ -531,11 +555,15 @@ if __name__ == "__main__":
 
     parser.add_argument('--p_lambda', type=float, default=1,
                         help='lambda: penalty parameter for l_1')
+    parser.add_argument('--max_itr', type=int, default=50,
+                        help='max_itr: set maximum iteration')
 
     parser.add_argument('--CD', default=False, action='store_true',
                         help='Apply coordinate descent algorithm')
     parser.add_argument('--FISTA', default=False, action='store_true',
                         help='Apply FISTA algorithm')
+    parser.add_argument('--gt_init', default=False, action='store_true',
+                        help='Use groundtruth solution as the initial position')
     
     args = parser.parse_args()
 
