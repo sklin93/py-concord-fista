@@ -1,11 +1,11 @@
 import numpy as np
-import time, pickle
 import cvxpy as cvx
 import seaborn as sns
-import sys, os, pickle, argparse, math
-
 import matplotlib.pyplot as plt
+import sys, os, pickle, argparse, math, time, pickle
+
 from matplotlib.pyplot import cm
+
 
 def plot_grad_hist(G, G_wnorm, prefix='_0'):
 
@@ -16,15 +16,15 @@ def plot_grad_hist(G, G_wnorm, prefix='_0'):
     plt.legend()
     plt.savefig("record/img/temp_grad_hist"+prefix+".png", dpi=200)
     plt.close()
-
     return 
+
 
 class mrce(object):
     """ MRCE: multivariate regression with covariance estimation """
 
     def __init__(self, X, Y, Omg, lamb2, TOL_ep, \
-        max_itr=100, B_init=np.array([]), \
-        u_cache=False, verbose=True, matrix_form=True, stochastic=False, \
+        max_itr=100, B_init=np.array([]), verbose=True, verbose_plots=False, \
+        u_cache=False, matrix_form=True, stochastic=False, \
         step_type=3, c=0.9, alpha=1, p_tau=0.7, const_ss=0.2):
 
         self.X = X
@@ -41,6 +41,7 @@ class mrce(object):
         self.matrix_form = matrix_form
         self.u_cache = u_cache
         self.verbose = verbose
+        self.verbose_plots = verbose_plots
         self.stochastic = stochastic
 
         # set up parameters for FISTA
@@ -65,18 +66,16 @@ class mrce(object):
         self.H = np.matmul(temp, self.Omg)
         print("MRCE: H computed in {:.2e} s".format(time.time()-t))
         
-        # experimental:
-        # cache S[r,j]*Omg[k,c] for U computation
-        # but it will take too much memory
         if u_cache:
             self.SOmg = np.empty([self.p, self.q])
 
         # compute ridge estimate of B
         self.B_ridge = self.ridge_estimate()
+
         # set initial value of B
         if B_init.size == 0:
-            self.B_init = np.random.normal(0,1, (self.p, self.q))
-            # self.B = self.B_ridge
+            # self.B_init = np.random.normal(0,1, (self.p, self.q))
+            self.B_init = self.B_ridge
         else:
             self.B_init = B_init
             
@@ -105,7 +104,11 @@ class mrce(object):
                         np.matmul((self.Y-np.matmul(self.X,B)).transpose(), 
                                   (self.Y-np.matmul(self.X,B))), 
                         self.Omg)
-                ) + self.lamb2 * np.linalg.norm(B, 1)
+                ) + self.lamb2 * np.abs(B).sum()
+        # sq_loss = (self.Y-np.matmul(self.X,B)).transpose() @ (self.Y-np.matmul(self.X,B))
+        # trace = (1/self.n) * (sq_loss * self.Omg).sum()
+        # likelihod = trace + self.lamb2 * np.linalg.norm(B, 1)
+        # return  likelihod
 
     def likelihood_B_wonorm(self, B):
         """ compute the objective value of B-step in MRCE """
@@ -144,6 +147,9 @@ class mrce(object):
     def fista_solver_B(self):
         """ FISTA for B update """
 
+        # print('\n\n\nobjective at B_ridge: {:.3e}'.format(self.likelihood_B(self.B_ridge)))
+        # print('nonzero B_ridge-entry count: ', np.count_nonzero(self.B_ridge))
+
         tau_n  = self.p_tau
         alpha  = self.alpha
 
@@ -159,15 +165,17 @@ class mrce(object):
         Th    = self.B_init.copy()
         XYOmg = np.matmul(np.matmul(self.X.transpose(), self.Y), self.Omg)
         G     = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
-            
 
-        plot_data = {}
-        plot_data['x']     = list()
-        plot_data['y(B)']  = list(); plot_data['y(Th)'] = list();   plot_data['y(A)'] = list()
-        plot_data['l1(B)'] = list(); plot_data['l1(Th)'] = list();  plot_data['l1(A)'] = list()
-        plot_data['h(B)']  = list(); plot_data['h(Th)'] = list();   plot_data['h(A)'] = list()
-        plot_data['tau']   = list()
-        plot_data['subg']  = list(); plot_data['subg_diff'] = list()
+        # plotting data
+        if self.verbose_plots:
+            plot_data = {}
+            plot_data['x']     = list()
+            plot_data['y(B)']  = list(); plot_data['y(Th)'] = list();   plot_data['y(A)'] = list()
+            plot_data['L1(B)'] = list(); plot_data['L1(Th)'] = list();  plot_data['L1(A)'] = list()
+            plot_data['h(B)']  = list(); plot_data['h(Th)'] = list();   plot_data['h(A)'] = list()
+            plot_data['tau']   = list(); 
+            plot_data['subg']  = list();   
+            plot_data['subg_diff'] = list()
 
         # looping for optimization steps
         loop = True
@@ -202,7 +210,7 @@ class mrce(object):
                     Step = B_n - Th
                     Q_n  = self.likelihood_B_wonorm(Th) \
                         + (Step*G).sum() + (1/(2*tau))*(np.linalg.norm(Step)**2) \
-                        + np.linalg.norm(B_n, 1)
+                        + np.abs(B_n).sum()
                     h_n  = self.likelihood_B_wonorm(B_n)
                     if h_n > Q_n: # sufficient descent condition
                         itr_back += 1
@@ -212,21 +220,36 @@ class mrce(object):
                 if self.verbose:
                     print("tau: {:.3e}".format(tau_n))
             
-            plot_data['tau'].append(tau)
+            if self.verbose_plots:
+                plot_data['tau'].append(tau)
 
+            
             # check gradient
             subg_diff = self.likelihood_B_wonorm(Th) - self.likelihood_B_wonorm(A_n) \
                         + ((A_n-Th)*G_n).sum()
-            plot_data['subg_diff'].append(subg_diff)
-            print("MRCE: check gradient correctness {:.3e}".format(subg_diff))
-            # compute directional derivatives
+            if self.verbose_plots:
+                plot_data['subg_diff'].append(subg_diff)
 
+            # check function value
+            f_n = h_n + self.lamb2 * np.abs(B_n).sum()
             if self.verbose:
-                f_n = h_n + self.lamb2 * np.linalg.norm(B_n,1)
+                print("MRCE: check gradient correctness {:.3e}".format(subg_diff))
                 print("\n- - - problem solution UPDATED - - -\n" + \
                     " 1st term (loss): "+"{:.3e}".format(h_n) + \
                     "\n 2nd term (regularizer): "+"{:.3e}".format(f_n-h_n) + \
                     "\n objective: "+"{:.3e}".format(f_n))
+
+            if self.verbose_plots:
+                plot_data['x'].append(itr) 
+                plot_data['y(A)'].append(self.likelihood_B(A_n))
+                plot_data['y(B)'].append(self.likelihood_B(B_n))
+                plot_data['y(Th)'].append(self.likelihood_B(Th))
+                plot_data['h(A)'].append(self.likelihood_B_wonorm(A_n))
+                plot_data['h(B)'].append(self.likelihood_B_wonorm(B_n))
+                plot_data['h(Th)'].append(self.likelihood_B_wonorm(Th))
+                plot_data['L1(A)'].append(self.lamb2 * np.abs(A_n).sum())  
+                plot_data['L1(B)'].append(self.lamb2 * np.abs(B_n).sum())  
+                plot_data['L1(Th)'].append(self.lamb2 * np.abs(Th).sum())
 
             # - - - - FISTA - - - - 
             # momentum update step
@@ -249,16 +272,6 @@ class mrce(object):
             h     = h_n
             G     = G_n
             itr  += 1
-            plot_data['x'].append(itr) 
-            plot_data['y(A)'].append(self.likelihood_B(A_n))
-            plot_data['y(B)'].append(self.likelihood_B(B_n))
-            plot_data['y(Th)'].append(self.likelihood_B(Th))
-            plot_data['h(A)'].append(self.likelihood_B_wonorm(A_n))
-            plot_data['h(B)'].append(self.likelihood_B_wonorm(B_n))
-            plot_data['h(Th)'].append(self.likelihood_B_wonorm(Th))
-            plot_data['l1(A)'].append(self.lamb2 * np.linalg.norm(A_n,1))  
-            plot_data['l1(B)'].append(self.lamb2 * np.linalg.norm(B_n,1))  
-            plot_data['l1(Th)'].append(self.lamb2 * np.linalg.norm(Th,1))
 
             # compute stopping criterion
             tmp       = G_n + np.sign(B_n) * Lambda # sign(Omg_n) or sign(Th)
@@ -267,7 +280,8 @@ class mrce(object):
             # cur_err   = np.linalg.norm(G_n)
             cur_err   = np.linalg.norm(subg) / np.linalg.norm(B_n)
             # cur_err   = np.linalg.norm(B_n + np.sign(B_n) * Lambda) / np.linalg.norm(B_n)
-            plot_data['subg'].append(cur_err)
+            if self.verbose_plots:
+                plot_data['subg'].append(cur_err)
 
             if self.verbose: 
                 print("error: "+"{:.3e}".format(cur_err)+\
@@ -276,25 +290,26 @@ class mrce(object):
                 print('nonzero entry count of B: ', np.count_nonzero(B_n))
                 if np.isnan(h): sys.exit()
 
+            if self.verbose_plots:
                 plt.figure(1,figsize=(12, 7))
-                plt.subplot(231); plt.title('objective value')
-                plt.plot(plot_data['x'], plot_data['y(A)'], 'r.-', label='y(A)')
-                plt.plot(plot_data['x'], plot_data['y(B)'], 'b.-', label='y(B)')
+                plt.subplot(231); plt.title('overall objective')
                 plt.plot(plot_data['x'], plot_data['y(Th)'], 'c.-', label='y(Th)')
+                # plt.plot(plot_data['x'], plot_data['y(A)'], 'r.-', label='y(A)')
+                plt.plot(plot_data['x'], plot_data['y(B)'], 'b.-', label='y(B)')
                 plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
                 if itr == 1: plt.legend(); 
 
-                plt.subplot(232); plt.title('1st term value')
-                plt.plot(plot_data['x'], plot_data['h(A)'], 'r.--', label='h(A)')
-                plt.plot(plot_data['x'], plot_data['h(B)'], 'b.--', label='h(B)')
+                plt.subplot(232); plt.title('data fidelity term')
                 plt.plot(plot_data['x'], plot_data['h(Th)'], 'c.--', label='h(Th)')
+                # plt.plot(plot_data['x'], plot_data['h(A)'], 'r.--', label='h(A)')
+                plt.plot(plot_data['x'], plot_data['h(B)'], 'b.--', label='h(B)')
                 plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
                 if itr == 1: plt.legend(); 
 
-                plt.subplot(233); plt.title('penalty term value')
-                plt.plot(plot_data['x'], plot_data['l1(A)'], 'r.--', label='l1(A)')
-                plt.plot(plot_data['x'], plot_data['l1(B)'], 'b.--', label='l1(B)')
-                plt.plot(plot_data['x'], plot_data['l1(Th)'], 'c.--', label='l1(Th)')
+                plt.subplot(233); plt.title('penalty term')
+                plt.plot(plot_data['x'], plot_data['L1(Th)'], 'c.--', label='L1(Th)')
+                # plt.plot(plot_data['x'], plot_data['L1(A)'], 'r.--', label='L1(A)')
+                plt.plot(plot_data['x'], plot_data['L1(B)'], 'b.--', label='L1(B)')
                 plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
                 if itr == 1: plt.legend(); 
 
@@ -316,12 +331,12 @@ class mrce(object):
                     G_wnorm = G + self.lamb2 * np.sign(B)
                     plot_grad_hist(G, G_wnorm, '_'+str(itr))
                 
-
             # check termination condition:
-            loop = itr < self.max_itr # and cur_err > self.TOL_ep
+            loop = itr < self.max_itr and cur_err > self.TOL_ep
          # end of (while loop)
         
-        plt.show(block=True)
+        if self.verbose_plots:
+            plt.show(block=True)
         return B_n
 
 
@@ -391,8 +406,8 @@ class mrce(object):
                 plt.pause(0.0001)
 
             print("computing stopping criterion ...")
-            err_B = np.linalg.norm(np.abs(B - B_n), 1)
-            norm_B = np.linalg.norm(self.B_ridge, 1)
+            err_B = np.abs(B - B_n).sum()
+            norm_B = np.abs(self.B_ridge).sum()
             stop =  err_B < self.TOL_ep *  norm_B
             itr  = itr + 1
             B    = B_n
@@ -487,10 +502,8 @@ class mrce_syn(object):
 
         # generate Y
         self.Y = np.matmul(self.X, self.B) + self.E
-        
+       
         return
-
-
 
 
 
@@ -526,12 +539,12 @@ def test(args):
     B0 = data.B if args.gt_init else np.array([])
         
     if args.CD:
-        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, matrix_form=args.max_itr, stochastic=False, max_itr=20, B_init=B0)
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, matrix_form=args.max_itr, stochastic=False, max_itr=args.max_itr, B_init=B0,verbose=args.verbose, verbose_plots=args.verbose_plots)
         print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
         input('...press any key...')
         B = problem.coordinate_solver_B()
     elif args.FISTA:
-        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, max_itr=args.max_itr, step_type=2, c=0.5, p_tau=0.7, alpha=1, const_ss=0.01, B_init=B0)
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, max_itr=args.max_itr, step_type=args.step_type, c=0.5, p_tau=args.p_tau, alpha=1, const_ss=args.const_ss, B_init=B0, verbose=args.verbose, verbose_plots=args.verbose_plots)
         print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
         input('...press any key...')
         B = problem.fista_solver_B()
@@ -547,23 +560,58 @@ if __name__ == "__main__":
 
     # example: python cc_mrce.py --synthetic_dir 'data-utility/synB-500.pkl' --FISTA
     
+
     parser = argparse.ArgumentParser(description='Arguments for MRCE B-update.')
+
+    # Pick or generate a dataset
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
                         help='Whether to generate a new synthetic dataset')
     parser.add_argument('--synthetic_dir', type=str, default='data-utility/synB.pkl',
                         help='File path to the new synthetic dataset')
+    parser.add_argument('--p', type=int, default=500, 
+                        help='dataset generation: input dimension')
+    parser.add_argument('--q', type=int, default=1000, 
+                        help='dataset generation: output dimension')
+    parser.add_argument('--n', type=int, default=200, 
+                        help='dataset generation: sample size')
+    parser.add_argument('--phi', type=float, default=0.7, 
+                        help='dataset generation: baseline covariance value of multivariate inputs')
+    parser.add_argument('--err_type', type=int, default=0, 
+                        help='dataset generation: types of error covariance, 0 for AR(1), 1 for Fractional Gaussian Noise (FGN)')
+    parser.add_argument('--rho', type=float, default=0.5, 
+                        help='dataset generation AR(1): baseline covariance value, from 0 to 0.9')
+    parser.add_argument('--Hurst', type=float, default=0.9,
+                        help='dataset generation FGN: Hurst parameter')
+    parser.add_argument('--success_prob_s1', type=float, default=0.2,
+                        help='dataset generation FGN:  Bernoulli draws for K entries')
+    parser.add_argument('--success_prob_s2', type=float, default=0.2,
+                        help='dataset generation FGN:  Bernoulli draws for Q rows')
 
-    parser.add_argument('--p_lambda', type=float, default=1,
-                        help='lambda: penalty parameter for l_1')
-    parser.add_argument('--max_itr', type=int, default=50,
-                        help='max_itr: set maximum iteration')
-
+    # Pick a solver
     parser.add_argument('--CD', default=False, action='store_true',
                         help='Apply coordinate descent algorithm')
     parser.add_argument('--FISTA', default=False, action='store_true',
                         help='Apply FISTA algorithm')
+
+    # Parameters of algorithm
+    parser.add_argument('--p_lambda', type=float, default=1,
+                        help='lambda: penalty parameter for l_1')
+    parser.add_argument('--p_tau', type=float, default=0.7,
+                        help='tau: step length')
+    parser.add_argument('--max_itr', type=int, default=50,
+                        help='max_itr: set maximum iteration')
+    parser.add_argument('--step_type', type=int, default=1,
+                        help='Type of step length setting')
+    parser.add_argument('--const_ss', type=float, default=0.1,
+                        help='Constant step length')
+
+    # For debugging
     parser.add_argument('--gt_init', default=False, action='store_true',
                         help='Use groundtruth solution as the initial position')
+    parser.add_argument('--verbose', default=False, action='store_true',
+                        help='Whether to display details of optimization updates')
+    parser.add_argument('--verbose_plots', default=False, action='store_true',
+                        help='Whether to display plots')
     
     args = parser.parse_args()
 

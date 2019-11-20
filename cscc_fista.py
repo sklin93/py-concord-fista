@@ -4,18 +4,13 @@ import cvxpy as cvx
 import sys, os, pickle, argparse
 
 from math import sqrt
+from pprint import pprint
 from scipy import sparse
 from scipy.stats import ortho_group
 from scipy.linalg import norm, inv
-from pprint import pprint
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
-
-
-
-
-
 
 
 
@@ -283,7 +278,7 @@ class cscc_fista(object):
             if self.verbose:
                 Omg_x = Omg_n.copy()
                 np.fill_diagonal(Omg_x, 0)
-                f_n = h_n + self.p_lambda * np.linalg.norm(Omg_x,1)
+                f_n = h_n + self.p_lambda * np.abs(Omg_x).sum()
                 print("\n- - - OUTER problem solution UPDATED - - -\n" + \
                     "1st term: "+"{:.6f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
                     " | 2nd term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
