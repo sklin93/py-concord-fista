@@ -19,9 +19,9 @@ class cscc_fista(object):
 
     def __init__(self, D, num_var, sample_cov=False, pMat=None, 
         p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=300, TOL=1e-5, 
-        p_tau=1, c_outer=0.9, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
+        p_tau=1, c_outer=0.5, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
         verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
-        c_inner=0.9, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
+        c_inner=0.5, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
         plot_in_loop=True, no_constraints=False, inner_cvx_solver=False,
         record=True, record_label="default"):
 
@@ -221,19 +221,21 @@ class cscc_fista(object):
         # Theta & initial gradient
         Th   = self.Omg_init.copy()
         ThS  = Th @ self.S  # Theta*S or S*Theta
-        G = 2 * (- np.diag(1.0/Th.diagonal()) + 0.5*(ThS + ThS.transpose()))
+        G    = -2 * np.diag(1.0/Th.diagonal()) + ThS + ThS.transpose()
 
         # initial A
         self.A   = Th - self.p_tau * G
         self.A_X = self.A.copy()
 
         if self.plot_in_loop:
-            plt.ion() ## Note this correction
-            plt.figure()
-
-        plot_data = {}
-        plot_data['x'] = list()
-        plot_data['y'] = list()
+            # plt.ion() ## Note this correction
+            plt.figure(1,figsize=(10, 5))
+            plot_data = {}
+            plot_data['x'] = list()
+            plot_data['y(Omg)'] = list();    plot_data['y(Th)'] = list()
+            plot_data['h(Omg)'] = list();    plot_data['h(Th)'] = list()
+            plot_data['L1(Omg_x)'] = list(); plot_data['L1(Th_x)'] = list()
+            plot_data['tau'] = list()
 
         # looping for optimization steps
         loop  = True
@@ -249,40 +251,43 @@ class cscc_fista(object):
 
             # constant step length
             if self.step_type_out == 3:
-                Omg_n   = self.update_convset(Th, G, tau)
+                Omg_n  = self.update_convset(Th, G, tau)
+                Omg_x  = Omg_n.copy()
+                np.fill_diagonal(Omg_x, 0)
                 # print("Omega_n="); print(Omg_n)
-                SOmg_n  = self.S @ Omg_n
-                h_n     = self.likelihood_convset(Omg_n, SOmg_n)
+                SOmg_n = self.S @ Omg_n
+                h_n    = self.likelihood_convset(Omg_n, SOmg_n)
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
                     if itr_diag !=0 or itr_back != 0:
                         tau = tau * self.c_outer
-                    Omg_n = self.update_convset(Th, G, tau)
+                    if self.verbose: 
+                        print("\n = = = line-search iteration "+str(itr_back)+" = = = ")
+
+                    Omg_n  = self.update_convset(Th, G, tau)
+                    Omg_x  = Omg_n.copy()
+                    np.fill_diagonal(Omg_x, 0)
+                    SOmg_n = self.S @ Omg_n
                     # if solution has zeros on diagonal, continue
                     if Omg_n.diagonal().min() < 1e-8 and itr_diag < 50:
                         itr_diag += 1
                         continue
-
+                    
                     # check backtracking condition
-                    Step    = Omg_n - Th
-                    Q_n     = h + (Step*G).sum() + (1/(2*tau))*(norm(Step)**2)
-                    SOmg_n  = self.S @ Omg_n
-                    h_n     = self.likelihood_convset(Omg_n, SOmg_n)
+                    Step = Omg_n - Th
+                    Q_n  = self.likelihood_convset(Th, self.S @ Th) + (Step*G).sum() \
+                           + (1/(2*tau))*(norm(Step)**2) + np.abs(Omg_x).sum()
+                    h_n  = self.likelihood_convset(Omg_n, SOmg_n)
                     if h_n > Q_n: # sufficient descent condition
                         itr_back += 1
                     else:
                         break
                 # end of (while True)
             # end of else
-            if self.verbose:
-                Omg_x = Omg_n.copy()
-                np.fill_diagonal(Omg_x, 0)
-                f_n = h_n + self.p_lambda * np.abs(Omg_x).sum()
-                print("\n- - - OUTER problem solution UPDATED - - -\n" + \
-                    "1st term: "+"{:.6f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
-                    " | 2nd term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
-                    " | objective: "+"{:.6f}".format(f_n))
+            
+            if self.plot_in_loop:
+                plot_data['tau'].append(tau)
 
             # FISTA momentum update step
             alpha_n = (1 + sqrt(1 + 4*(alpha**2)))/2
@@ -290,7 +295,7 @@ class cscc_fista(object):
             # update meta variable
             ThS = Th @ self.S
             # update gradient
-            G_n = - np.diag(1.0/Th.diagonal()) + 0.5*(ThS + ThS.transpose())
+            G_n = - 2 * np.diag(1.0/Th.diagonal()) + ThS + ThS.transpose()
             # update tau for next opt iteration
             if self.step_type_out == 0:
                 tau_n = 1
@@ -326,24 +331,28 @@ class cscc_fista(object):
             cur_err   = norm(subg) / norm(Omg_n)
 
             if self.verbose: 
+                f_n = h_n + self.p_lambda * np.abs(Omg_x).sum()
+                print("\n- - - OUTER problem solution UPDATED - - -\n" + \
+                    "1st(diag) term: "+"{:.6f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
+                    " | 2nd(trace) term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
+                    " | 3rd(penalty) term: "+"{:.6f}".format(self.p_lambda * np.abs(Omg_x).sum()))
+
                 # print("updated Omega:"); print(Omg)
                 # print("updated Theta:"); print(Th)
                 print("error: "+"{:.2f}".format(cur_err)+\
                     ", subg norm:"+"{:.2f}".format(norm(subg))+\
-                    "\nh function value:"+"{:.6f}".format(h)+\
-                    "\nh function comparable value:"+"{:.6f}".format(h/2))
+                    "\nh function value (data fidelity):"+"{:.6f}".format(h_n)+\
+                    "\nh function comparable value:"+"{:.5f}".format(h_n/2)+\
+                    "\nf function value:"+"{:.5f}".format(f_n))
                 print("Inferred Omega:")
                 print(Omg_n)
                 print('nonzero entry count: ', np.count_nonzero(Omg_n))
+                # check Theta matrix symmetric
+                print("symmetric(Th, G_n, Omg_n):{0},{1},{2}".format(self.check_symmetric(Th), self.check_symmetric(G_n), self.check_symmetric(Omg_n)))
                 if np.isnan(h): sys.exit()
             
-            plot_data['x'].append(itr) 
-            plot_data['y'].append(f_n) 
-
-            if self.plot_in_loop:
-                plt.plot(plot_data['x'], plot_data['y'], 'bo-')
-                plt.show(block=False)
-                plt.pause(0.0001)
+                if self.plot_in_loop:
+                    plot_data = self.plot_convset(plot_data, itr, f_n, h_n, Th, Omg_x)
 
             # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
@@ -362,6 +371,7 @@ class cscc_fista(object):
         self.result = Omg_n.copy()
         return Omg_n, label
     # end of solver_convset
+
 
     def solver_linfty(self):
         """ inner stage optimization via FISTA """
@@ -434,7 +444,7 @@ class cscc_fista(object):
                              / (Step.transpose()@(G_n_-G_)).trace()
                     using *.sum() is much faster """
 
-            """ compute gradient error
+            """ - - - compute gradient error - - - 
             As B_n has been located in the bounding box w.r.t. l_infty <= 1, 
             we can directly use the gradient of g which is quaratic."""
             cur_err   = norm(G_n_) / norm(B_n)
@@ -460,6 +470,46 @@ class cscc_fista(object):
 
         return B_n
     # end of solver_convset
+
+    def plot_convset(self, plot_data, itr, f_n, h_n, Th, Omg_x):
+
+        Th_x = Th.copy(); 
+        np.fill_diagonal(Th_x, 0)
+        h_Th = self.likelihood_convset(Th, self.S@Th)
+        plot_data['x'].append(itr)
+        plot_data['y(Omg)'].append(f_n)
+        plot_data['y(Th)'].append(h_Th+self.p_lambda * np.abs(Th_x).sum())
+        plot_data['h(Omg)'].append(h_n)
+        plot_data['h(Th)'].append(h_Th)
+        plot_data['L1(Omg_x)'].append(self.p_lambda * np.abs(Omg_x).sum()) 
+        plot_data['L1(Th_x)'].append(self.p_lambda * np.abs(Th_x).sum())  
+
+        plt.subplot(231); plt.title('overall objective')
+        plt.plot(plot_data['x'], plot_data['y(Th)'], 'c.-', label='y(Th)')
+        plt.plot(plot_data['x'], plot_data['y(Omg)'], 'b.-', label='y(Omg)')
+        plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+        if itr == 1: plt.legend(); 
+        
+        plt.subplot(232); plt.title('data fidelity term')
+        plt.plot(plot_data['x'], plot_data['h(Th)'], 'c.-', label='h(Th)')
+        plt.plot(plot_data['x'], plot_data['h(Omg)'], 'b.-', label='h(Omg)')
+        plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+        if itr == 1: plt.legend();
+        
+        plt.subplot(233); plt.title('penalty term')
+        plt.plot(plot_data['x'], plot_data['L1(Th_x)'], 'c.--', label='L1(Th)')
+        plt.plot(plot_data['x'], plot_data['L1(Omg_x)'], 'b.--', label='L1(Omg)')
+        plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+        if itr == 1: plt.legend();
+
+        plt.subplot(234); plt.title('step size')
+        plt.plot(plot_data['x'], plot_data['tau'], 'r.--')
+        plt.show(block=False); plt.pause(0.01)
+        
+        return plot_data
+
+    def check_symmetric(self, a, rtol=1e-05, atol=1e-08):
+        return np.allclose(a, a.T, rtol=rtol, atol=atol)
 
 
 def set_mat_from_triu(vec, num_var, nnz_index):
@@ -499,7 +549,7 @@ def generate_synthetic(syndata_file, num_var = 7, num_smp = 200, pct_nnz = 0.2, 
         pct_nnz   = 0.2  # percentage of non-zero entries in L matrix
         base_nnz  = 0.7  # base value of non-zero entries in L matrix """
 
-    # randomly select a certain number of edges
+    # Randomly select a certain number of edges
     # as non-zeros in partial correlation graph
 
     # create sparse symmetric positive definite matrix:
@@ -542,6 +592,22 @@ def test_synthetic(syndata_file, args):
         (Omg, Sig, D, pMat, num_var, num_smp) = pickle.load(p)
     print("Loaded ... Groundtruth Omega:")
     print(Omg)
+
+    # print measures of groundtruth
+    Y     = D - np.tile(D.mean(axis=0), (num_smp,1))
+    S     = Y.transpose() @ Y / (num_smp - 1)
+    Omg_x = Omg.copy(); np.fill_diagonal(Omg_x, 0)
+    SOmg  = S @ Omg
+    h_n   = -2 * np.log(Omg.diagonal()).sum() + (Omg.transpose()*SOmg).sum()
+    f_n   = h_n + args.p_lambda * np.abs(Omg_x).sum()
+    print("\n- - - measures of groundtruth - - -\n" + \
+        "1st(diag) term: "+"{:.4f}".format(-2 * np.log(Omg.diagonal()).sum()) + \
+        " | 2nd(trace) term: "+"{:.4f}".format((Omg.transpose()*SOmg).sum()) + \
+        " | 3rd(penalty) term: "+"{:.4f}".format(args.p_lambda * np.abs(Omg_x).sum())+"\n"+ \
+        "h function value (data fidelity):"+"{:.4f}".format(h_n)+"\n"+ \
+        "h function comparable value:"+"{:.4f}".format(h_n/2)+"\n"+ \
+        "f function value:"+"{:.4f}".format(f_n))
+    input('... press any key to continue ...')
     
     # partial correlation graph estimation
     problem  = cscc_fista(D, num_var=num_var, pMat=pMat, 
@@ -598,7 +664,7 @@ def plot_with_records(record_list):
 
 def main(args):
 
-    np.set_printoptions(formatter={'float': '{: 0.2f}'.format})
+    np.set_printoptions(formatter={'float': '{: 0.4f}'.format})
 
     if args.generate_synthetic:
         syndata_file = args.synthetic_dir
@@ -618,6 +684,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Arguments for Constrained CONCORD.')
     
+    # Parameters for synthetic dataset generation
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
                         help='Whether to generate a new synthetic dataset')
     parser.add_argument('--overwrite', default=False, action='store_true',
@@ -632,7 +699,6 @@ if __name__ == "__main__":
                         help='percentage of non-zero entries in L matrix')
     parser.add_argument('--base_nnz', type=float, default=0.7,
                         help='base value of non-zero entries in L matrix')
-
 
     # Parameters of algorithm
     parser.add_argument('--MAX_ITR', type=int, default=20,

@@ -105,10 +105,6 @@ class mrce(object):
                                   (self.Y-np.matmul(self.X,B))), 
                         self.Omg)
                 ) + self.lamb2 * np.abs(B).sum()
-        # sq_loss = (self.Y-np.matmul(self.X,B)).transpose() @ (self.Y-np.matmul(self.X,B))
-        # trace = (1/self.n) * (sq_loss * self.Omg).sum()
-        # likelihod = trace + self.lamb2 * np.linalg.norm(B, 1)
-        # return  likelihod
 
     def likelihood_B_wonorm(self, B):
         """ compute the objective value of B-step in MRCE """
