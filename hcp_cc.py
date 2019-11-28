@@ -272,13 +272,13 @@ def reconstruct_err(task, filename, rnd_compare=False):
 
 def mrce_sf(task, lam=0.1):
 	vec_s, vec_f = data_prep(task)
-	import ipdb; ipdb.set_trace()
-	problem = mrce(X=vec_s, Y=vec_f, Omg=Omg_ori, lamb2=lam, 
+	
+	problem = mrce(X=vec_s, Y=vec_f, Omg=np.array([]), lamb2=lam, 
 		TOL_ep=0.05, max_itr=50, step_type=1, c=0.5, p_tau=0.7, alpha=1, 
 		const_ss=0.1, B_init=np.array([]), verbose=True, verbose_plots=True)
-    print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
-    input('...press any key...')
-    B = problem.fista_solver_B()
+	input('...press any key...')
+	B = problem.fista_solver_B()
+	import ipdb; ipdb.set_trace()
 
 """Other packaged methods"""
 '''Using sgcrf package to solve the problem'''
