@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
 
-
 class cscc_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 

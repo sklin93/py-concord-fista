@@ -427,7 +427,8 @@ class mrce_syn(object):
     """ Generate synthetic dataset according to MRCE paper """
 
     def __init__(self, p = 100, q = 100, n = 50, phi = 0.7, \
-        err_type = 0, rho = 0.5, Hurst = 0.9, success_prob_s1 = 0.2, success_prob_s2 = 0.2):
+        err_type = 0, rho = 0.5, Hurst = 0.9, success_prob_s1 = 0.2, success_prob_s2 = 0.2, \
+        pMat_noise = 0):
 
         self.p = p
         self.n = n
@@ -460,6 +461,9 @@ class mrce_syn(object):
         self.B = np.empty([self.p, self.q])
         self.Sigma_X = np.empty([self.p, self.p])
         self.Sigma_E = np.empty([self.q, self.q])
+
+        # - - - noise ratio of noise in pMat
+        self.pMat_noise = pMat_noise
         
         return
 
@@ -498,7 +502,21 @@ class mrce_syn(object):
 
         # generate Y
         self.Y = np.matmul(self.X, self.B) + self.E
-       
+
+        # create non-zero mask
+        self.Omg  = np.linalg.inv(self.Sigma_E)
+        self.pMat = self.Omg.copy()
+        self.pMat[self.pMat != 0] = 1
+        
+        # add noise to non-zero mask
+        if self.pMat_noise != 0:
+            idx_zero  = np.where(self.Omg == 0)
+            num_zero  = idx_zero[0].size
+            num_noise = int(np.floor(num_zero * self.pMat_noise))
+            print("adding {0:d} entries to pMat....".format(num_noise))
+            idx_noise = np.random.choice(num_zero, num_noise)
+            self.pMat[idx_zero[0][idx_noise], idx_zero[0][idx_noise]] = 1
+
         return
 
 
@@ -510,12 +528,12 @@ def test(args):
         # generat a new synthetic dataset
         data = mrce_syn(p = 500, q = 1000, n = 200, phi = 0.7, err_type = 0, rho = 0.5)
         data.generate()
-        with open(args.synthetic_dir, "wb") as f:
-            pickle.dump(data, f) 
+        with open(args.synthetic_dir, "wb") as pfile:
+            pickle.dump(data, pfile) 
     else: 
         # use existing synthetic dataset
-        with open(args.synthetic_dir, 'rb') as f:
-            data = pickle.load(f)
+        with open(args.synthetic_dir, 'rb') as pfile:
+            data = pickle.load(pfile)
 
     if 'data' in locals():
         print('= = = dataset loaded = = =')
@@ -556,7 +574,6 @@ if __name__ == "__main__":
 
     # example: python cc_mrce.py --synthetic_dir 'data-utility/synB-500.pkl' --FISTA
     
-
     parser = argparse.ArgumentParser(description='Arguments for MRCE B-update.')
 
     # Pick or generate a dataset
@@ -576,6 +593,8 @@ if __name__ == "__main__":
                         help='dataset generation: types of error covariance, 0 for AR(1), 1 for Fractional Gaussian Noise (FGN)')
     parser.add_argument('--rho', type=float, default=0.5, 
                         help='dataset generation AR(1): baseline covariance value, from 0 to 0.9')
+    parser.add_argument('--pMat_noise', type=float, default=0, 
+                        help='dataset generation: additional noise ratio in pMat, from 0 to 1')
     parser.add_argument('--Hurst', type=float, default=0.9,
                         help='dataset generation FGN: Hurst parameter')
     parser.add_argument('--success_prob_s1', type=float, default=0.2,
