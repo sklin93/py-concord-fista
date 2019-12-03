@@ -29,7 +29,7 @@ class mrce(object):
 
         self.X = X
         self.Y = Y
-        self.Omg = Omg
+        # self.Omg = Omg
 
         self.lamb2 = lamb2
         self.p = self.X.shape[1]
@@ -62,12 +62,6 @@ class mrce(object):
         t = time.time()
         temp = np.matmul(self.X.transpose(), self.Y)
         print("MRCE: H_0 computed in {:.2e} s".format(time.time()-t))
-        t = time.time()
-        self.H = np.matmul(temp, self.Omg)
-        print("MRCE: H computed in {:.2e} s".format(time.time()-t))
-        
-        if u_cache:
-            self.SOmg = np.empty([self.p, self.q])
 
         # compute ridge estimate of B
         self.B_ridge = self.ridge_estimate()
@@ -78,8 +72,21 @@ class mrce(object):
             self.B_init = self.B_ridge
         else:
             self.B_init = B_init
-            
+        
+        if Omg.size == 0:
+            # init_E = (self.Y - np.matmul(self.X, self.B_init))
+            # E_S = init_E - np.tile(init_E.mean(axis=0),(init_E.shape[0],1))
+            # self.Omg = np.linalg.inv((E_S.transpose() @ E_S) / (E_S.shape[0] - 1))
+            self.Omg = np.identity(self.q)
+        else:
+            self.Omg = Omg
 
+        t = time.time()
+        self.H = np.matmul(temp, self.Omg)
+        print("MRCE: H computed in {:.2e} s".format(time.time()-t))
+        
+        if u_cache:
+            self.SOmg = np.empty([self.p, self.q])
 
     def ridge_estimate(self):
         """ ridge estimate of B that is usedfor convergence test: 

@@ -3,6 +3,7 @@ import numpy as np
 import pickle
 import sys
 from cc_fista import cc_fista, standardize, pseudol
+from cc_mrce import mrce
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -47,7 +48,7 @@ def data_prep(task, v1=True, subj_ids=None, flatten=True, normalize_s=False):
 		f = np.stack(f, axis=2)
 	else:
 		if v1:
-			sMat = loadmat(info_dict['data_dir']+info_dict['s_file']['v1'])
+			sMat = loadmat(info_dict['data_dir']+info_dict['s_file']['streamline'])
 			s = sMat['X']
 			# fMat = loadmat(info_dict['data_dir']+info_dict['f_file'])
 			fMat = loadmat(info_dict['data_dir']+'tfMRI-'+task+'.mat')
@@ -269,6 +270,16 @@ def reconstruct_err(task, filename, rnd_compare=False):
 	# print('average error percentage',tot_err_perct/n)
 	# return err
 
+def mrce_sf(task, lam=0.1):
+	vec_s, vec_f = data_prep(task)
+	
+	problem = mrce(X=vec_s, Y=vec_f, Omg=np.array([]), lamb2=lam, 
+		TOL_ep=0.05, max_itr=50, step_type=1, c=0.5, p_tau=0.7, alpha=1, 
+		const_ss=0.1, B_init=np.array([]), verbose=True, verbose_plots=True)
+	input('...press any key...')
+	B = problem.fista_solver_B()
+	import ipdb; ipdb.set_trace()
+
 """Other packaged methods"""
 '''Using sgcrf package to solve the problem'''
 def sgcrf(task):
@@ -397,7 +408,7 @@ if __name__ == '__main__':
 	# common_subj_ids = [146432, 205826, 214019, 163331, 141826, 124422, 159239, 129028, 189450, 209935, 123925, 140824, 162329, 119833, 192540, 256540, 123420, 149539, 166438, 217126, 161327, 196144, 250932, 182840, 135225, 191033, 250427, 160830, 148032, 156233, 164939, 151627, 190031, 177746, 245333, 147030, 125525, 194645, 201818, 210011, 194140, 155231, 150625, 185442, 172130, 180836, 159340, 141422, 154734, 171633, 128632, 167036, 128127, 140420, 131722, 196750, 127630, 131217, 179346, 212116, 118932, 255639, 157336, 203418, 187547, 178849, 126628, 151223, 210617, 164030, 120515, 201414, 198855, 150726, 180937, 214726, 214221, 180432, 159441, 154835, 193239, 197348, 162026, 123117, 149741, 204016, 212217, 122620, 157437, 152831, 118528, 178950, 195849, 130316, 211215, 121618, 199958, 224022, 173334, 147737, 186141, 199453, 194847, 138534, 133928, 172332, 120111, 198451, 185139, 154936, 163129, 124220, 205119, 154431, 239944, 192843, 158540, 175439, 158035, 131924, 217429, 140117, 153429, 149337, 179548, 161630, 212318, 208226, 144226, 135528, 148840, 130922, 191336, 233326, 211316, 126325, 139637, 173940, 246133, 173435, 160123, 169343, 172938, 181131, 120212, 168341, 201111, 214423, 124826, 133019, 146331, 205725, 176542, 180129, 205220, 189349, 200614, 145834, 162733, 162228, 158136, 251833, 188347, 175035, 127933, 144832, 153025, 161731, 212419, 118730, 187850, 191437, 122317, 148941, 211922, 182739, 211417, 156637, 143325, 178142, 173536, 139233, 130013, 195041, 169444, 151526, 199655, 177645, 199150, 210415, 181232, 155635, 231928, 133625, 163836, 172029]
 	# f_f('WM', 'LANGUAGE', common_subj_ids, lam, split=True)
 
-	s_f(task, lam=lam, check_loss_only=False, split=True)
+	# s_f(task, lam=lam, check_loss_only=False, split=True)
 
 	# s_f_direct(task, lam=0.00009, split=True)
 
@@ -407,3 +418,6 @@ if __name__ == '__main__':
 	# sgcrf(task)
 	# cc_cvx(task=task, lam=0.01, split=True)
 	# direct_reg(task, lam, split=True) #lam being alpha for individual regression
+
+	'''mrce'''
+	mrce_sf(task, lam)
