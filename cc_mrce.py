@@ -1,5 +1,9 @@
 import numpy as np
 import cvxpy as cvx
+
+from scipy import sparse
+from scipy.stats import ortho_group
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 import sys, os, pickle, argparse, math, time, pickle
@@ -435,7 +439,7 @@ class mrce_syn(object):
 
     def __init__(self, p = 100, q = 100, n = 50, phi = 0.7, \
         err_type = 0, rho = 0.5, Hurst = 0.9, success_prob_s1 = 0.2, success_prob_s2 = 0.2, \
-        pMat_noise = 0):
+        pct_nnz = 0.2, base_nnz = 0.7, pMat_noise = 0):
 
         self.p = p
         self.n = n
@@ -469,6 +473,10 @@ class mrce_syn(object):
         self.Sigma_X = np.empty([self.p, self.p])
         self.Sigma_E = np.empty([self.q, self.q])
 
+        # - - - Parameters for err_type = 2
+        self.pct_nnz  = pct_nnz   # percentage of non-zero entries in L matrix
+        self.base_nnz = base_nnz  # base value of non-zero entries in L matrix
+
         # - - - noise ratio of noise in pMat
         self.pMat_noise = pMat_noise
         
@@ -483,19 +491,43 @@ class mrce_syn(object):
         # generate X (n x p)
         self.X = np.random.multivariate_normal(np.zeros(self.p), self.Sigma_X, self.n)
 
-        # generate Sigma_E (q x q) 
+        # generate Sigma_E (q x q) and Omg (q x q)
         if self.err_type == 0: 
             # AR(1) error covariance
             for i in range(self.q):
                 for j in range(self.q):
                     self.Sigma_E[i,j] =  np.power(self.rho, np.abs(i-j))
+            # generate Omg from Sigma_E
+            self.Omg  = np.linalg.inv(self.Sigma_E)
         elif self.err_type == 1:
             # Fractional Gaussian Noise (FGN)
             for i in range(self.q):
                 for j in range(self.q):
-                    self.Sigma_E[i,j] = 0.5 * ( np.power(np.abs(i-j)+1, 2*self.Hurst) 
-                                            - 2*np.power(np.power(i-j), 2*self.Hurst)
-                                            +   np.power(np.abs(i-j)-1, 2*self.Hurst) )
+                    self.Sigma_E[i,j] = 0.5 * (np.power(np.abs(i-j)+1, 2*self.Hurst) 
+                                            -2*np.power(np.power(i-j), 2*self.Hurst)
+                                            +  np.power(np.abs(i-j)-1, 2*self.Hurst) )
+            self.Omg  = np.linalg.inv(self.Sigma_E)
+        elif self.err_type == 2:
+            # Randomly select a certain number of edges
+            #       as non-zeros in partial correlation graph.
+            # Create sparse symmetric positive definite matrix:
+            #       Every positive-definite matrix has a Cholesky decomposition 
+            #       that takes the form LL' where L is lower triangular, 
+            #       so sample L and compute a positive-definite matrix from it. 
+            #       If L is sparse then LL' is also sparse. 
+            #       Make sure L is less sparse then what you want your final matrix to be.
+            Spr = sparse.random(self.q, self.q, density=self.pct_nnz).A
+            Spr[Spr != 0] = Spr[Spr != 0] * (1 - self.base_nnz) + self.base_nnz
+            print("nonzeros of triu-Spr: " + str(np.count_nonzero(Spr)))
+            Chol = np.tril(Spr)
+            np.fill_diagonal(Chol, 1)
+            self.Omg  = Chol @ Chol.transpose()
+            print("nonzeros of triu-Omg: " + str((np.count_nonzero(self.Omg)-self.q)/2.0))
+            self.Omg = self.Omg / np.max(self.Omg)
+            np.fill_diagonal(self.Omg, 1)
+            print("positive definiteness check: " + str(np.all(np.linalg.eigvals(self.Omg) > 0)))
+            self.Sigma_E = np.linalg.inv(self.Omg)
+        
         # generate error matrix E (n x q)
         self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
 
@@ -511,18 +543,24 @@ class mrce_syn(object):
         self.Y = np.matmul(self.X, self.B) + self.E
 
         # create non-zero mask
-        self.Omg  = np.linalg.inv(self.Sigma_E)
         self.pMat = self.Omg.copy()
         self.pMat[self.pMat != 0] = 1
+        num_nz = np.count_nonzero(self.pMat)
+        print("... ground-truth Omg contains {0:d} non-zero entries,"\
+              +" {1:d} off-diag ...".format(num_nz, num_nz-self.q))
         
-        # add noise to non-zero mask
+        # add more feasible entries to pMat mask
         if self.pMat_noise != 0:
-            idx_zero  = np.where(self.Omg == 0)
-            num_zero  = idx_zero[0].size
-            num_noise = int(np.floor(num_zero * self.pMat_noise))
-            print("adding {0:d} entries to pMat....".format(num_noise))
-            idx_noise = np.random.choice(num_zero, num_noise)
-            self.pMat[idx_zero[0][idx_noise], idx_zero[0][idx_noise]] = 1
+            num_noise = int(np.floor(num_nz * self.pMat_noise/2))
+            print("... sampling {0:d} entries in pMat ...".format(2 * num_noise))
+            idx_r = np.random.randint(self.q, size=num_noise)
+            idx_c = np.random.randint(self.q, size=num_noise)
+            self.pMat[idx_r, idx_c] = 1
+            self.pMat = self.pMat + self.pMat.transpose()
+            self.pMat[self.pMat != 0] = 1     
+            num_nz2 = np.count_nonzero(self.pMat)
+            print("... adding {0:d} feasible entries in pMat ...".format(num_nz2-num_nz))
+            print("... symmetric check: {0} ...".format(np.allclose(self.pMat, self.pMat.T, rtol=1e-5, atol=1e-8)))
 
         return
 
@@ -533,7 +571,9 @@ def test(args):
 
     if args.generate_synthetic:
         # generat a new synthetic dataset
-        data = mrce_syn(p = 500, q = 1000, n = 200, phi = 0.7, err_type = 0, rho = 0.5)
+        data = mrce_syn(p = 500, q = 1000, n = 200, 
+                        err_type = 0, rho = 0.5, phi = 0.7, 
+                        pct_nnz=args.pct_nnz, base_nnz=args.base_nnz)
         data.generate()
         with open(args.synthetic_dir, "wb") as pfile:
             pickle.dump(data, pfile) 
@@ -608,6 +648,10 @@ if __name__ == "__main__":
                         help='dataset generation FGN:  Bernoulli draws for K entries')
     parser.add_argument('--success_prob_s2', type=float, default=0.2,
                         help='dataset generation FGN:  Bernoulli draws for Q rows')
+    parser.add_argument('--pct_nnz', type=float, default=0.2, 
+                        help='dataset generation Chol: percentage of non-zero entries in L matrix')
+    parser.add_argument('--base_nnz', type=float, default=0.7, 
+                        help='dataset generation Chol: base value of non-zero entries in L matrix')
 
     # Pick a solver
     parser.add_argument('--CD', default=False, action='store_true',

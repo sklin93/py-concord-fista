@@ -22,7 +22,7 @@ class cscc_fista(object):
         verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
         c_inner=0.5, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
         plot_in_loop=True, no_constraints=False, inner_cvx_solver=False,
-        record=True, record_label="default"):
+        record=True, record_label="default", Omg_ori=np.array([])):
 
         super(cscc_fista, self).__init__()
         self.record         = record
@@ -60,8 +60,9 @@ class cscc_fista(object):
 
         # solution initialization
         # make sure initial B_init has all zero diagonals
-        self.Omg_init   = np.identity(num_var)
-        self.B_init     = np.zeros(self.Omg_init.shape)
+        self.Omg_init    = np.identity(num_var)
+        self.B_init      = np.zeros(self.Omg_init.shape)
+        self.Omg_ori     = Omg_ori
 
         # meta variables
         self.A           = np.zeros(self.Omg_init.shape)
@@ -112,7 +113,7 @@ class cscc_fista(object):
         # for the gradient and likelihood, should we use log(abs(det))?
         # Accelerate via equality: tr(A.transpose()@A) = (A*A).sum()
         # print(Omg.diagonal())
-        return -2 * np.log(Omg.diagonal()).sum() + (Omg.transpose()*SOmg).sum()
+        return -2 * np.log(np.abs(Omg.diagonal())).sum() + (Omg.transpose()*SOmg).sum()
         # return - np.log(abs(np.diag(np.diag(Omg)))) + (Omg.transpose()*SOmg).sum()
 
     def likelihood_linfty(self, W):
@@ -261,17 +262,17 @@ class cscc_fista(object):
                 while True:
                     if itr_diag !=0 or itr_back != 0:
                         tau = tau * self.c_outer
-                    if self.verbose: 
-                        print("\n = = = line-search iteration "+str(itr_back)+" = = = ")
+                    # if self.verbose: 
+                    print("\n = = = line-search itr_back:{0:d}, itr_diag:{1:d}, tau: {2:.2e} = = = ".format(itr_back, itr_diag, tau))
 
                     Omg_n  = self.update_convset(Th, G, tau)
                     Omg_x  = Omg_n.copy()
                     np.fill_diagonal(Omg_x, 0)
                     SOmg_n = self.S @ Omg_n
-                    # if solution has zeros on diagonal, continue
-                    if Omg_n.diagonal().min() < 1e-8 and itr_diag < 50:
-                        itr_diag += 1
-                        continue
+                    # # if solution has zeros on diagonal, continue
+                    # if Omg_n.diagonal().min() < 1e-25 and itr_diag < 50:
+                    #     itr_diag += 1
+                    #     continue
                     
                     # check backtracking condition
                     Step = Omg_n - Th
@@ -332,22 +333,26 @@ class cscc_fista(object):
             if self.verbose: 
                 f_n = h_n + self.p_lambda * np.abs(Omg_x).sum()
                 print("\n- - - OUTER problem solution UPDATED - - -\n" + \
-                    "1st(diag) term: "+"{:.6f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
-                    " | 2nd(trace) term: "+"{:.6f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
-                    " | 3rd(penalty) term: "+"{:.6f}".format(self.p_lambda * np.abs(Omg_x).sum()))
+                    "1st(diag) term: "+"{:.4f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
+                    " | 2nd(trace) term: "+"{:.4f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
+                    " | 3rd(penalty) term: "+"{:.4f}".format(self.p_lambda * np.abs(Omg_x).sum()))
 
                 # print("updated Omega:"); print(Omg)
                 # print("updated Theta:"); print(Th)
                 print("error: "+"{:.2f}".format(cur_err)+\
                     ", subg norm:"+"{:.2f}".format(norm(subg))+\
-                    "\nh function value (data fidelity):"+"{:.6f}".format(h_n)+\
-                    "\nh function comparable value:"+"{:.5f}".format(h_n/2)+\
-                    "\nf function value:"+"{:.5f}".format(f_n))
+                    "\nh function value (data fidelity):"+"{:.4f}".format(h_n)+\
+                    "\nh function comparable value:"+"{:.4f}".format(h_n/2)+\
+                    "\nf function value:"+"{:.4f}".format(f_n))
                 print("Inferred Omega:")
                 print(Omg_n)
                 print('nonzero entry count: ', np.count_nonzero(Omg_n))
                 # check Theta matrix symmetric
                 print("symmetric(Th, G_n, Omg_n):{0},{1},{2}".format(self.check_symmetric(Th), self.check_symmetric(G_n), self.check_symmetric(Omg_n)))
+                # if self.Omg_ori.size != 0:
+                #     self.nz_ori = self.Omg_ori.copy().flatten()
+                #     self.nz_n = Omg_n.copy().flatten()
+                #     print("Overlap with ground-truth: {0:d} entries, {1:.2f} percent".format())
                 if np.isnan(h): sys.exit()
             
                 if self.plot_in_loop:

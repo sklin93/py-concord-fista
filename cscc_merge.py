@@ -8,27 +8,53 @@ import os, pickle, argparse
 
 def cscc_mrce(args):
 
-    print("Loading synthetic dataset ...")
-
+    np.set_printoptions(formatter={'float': '{: 0.2e}'.format})
+    
     if args.generate_synthetic:
         # generat a new synthetic dataset
+        print("Generating synthetic dataset ...")
         data = mrce_syn(p = args.p, q = args.q, n = args.n, phi = args.phi, \
-            err_type = args.err_type, rho = args.rho, pMat_noise = args.pMat_noise)
+                err_type = args.err_type, rho = args.rho, pMat_noise = args.pMat_noise, \
+                pct_nnz=args.pct_nnz, base_nnz=args.base_nnz)
         data.generate()
         with open(args.synthetic_dir, "wb") as pfile:
             pickle.dump(data, pfile) 
     else: 
         # use existing synthetic dataset
+        print("Loading synthetic dataset ...")
         with open(args.synthetic_dir, 'rb') as pfile:
             data = pickle.load(pfile)
 
-    if args.mrce_verbose:
+    if args.verbose:
         print("Groundtruth Omega:"); print(data.Omg)
         print('nonzero entry count: ', np.count_nonzero(data.Omg))
         print("Given pMat:"); print(data.pMat)
         print('nonzero entry count: ', np.count_nonzero(data.pMat))
+        input('... press any key to continue ...')
 
-    if args.run_algo:
+    # (estimate Omega)
+    # partial correlation graph estimation
+    if args.run_cscc:
+        Omg_hat = np.zeros((data.q, data.q))
+        record_label = os.path.splitext(os.path.basename(args.synthetic_dir))[0]
+        problem = cscc_fista(D=data.Y-np.matmul(data.X, data.B), 
+                    pMat=data.pMat, num_var=data.q, 
+                    step_type_out = args.cscc_step_type_out, const_ss_out = args.cscc_const_ss_out, 
+                    p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
+                    MAX_ITR=args.cscc_max_itr, 
+                    TOL=args.cscc_TOL, TOL_inn=args.cscc_TOL_inn,
+                    verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
+                    no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
+                    record_label=record_label)
+        Omg_hat, label = problem.solver_convset()
+        if args.verbose:
+            print("\n\n= = = Finished = = =\nGroundtruth Omega:"); print(data.Omg)
+            print('nonzero entry count: ', np.count_nonzero(data.Omg))
+            print("Inferred Omega:"); print(Omg_hat)
+            print('nonzero entry count:', np.count_nonzero(Omg_hat))
+            
+
+    if args.run_all:
         loop    = True
         B_hat   = np.zeros((data.p, data.q))
         Omg_hat = np.zeros((data.q, data.q))
@@ -46,7 +72,7 @@ def cscc_mrce(args):
                         no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
                         record_label=record_label)
             Omg_hat, label = problem.solver_convset()
-            if args.mrce_verbose:
+            if args.verbose:
                 print("\n\n= = = Finished = = =\nGroundtruth Omega:"); print(data.Omg)
                 print('nonzero entry count: ', np.count_nonzero(data.Omg))
                 print("Inferred Omega:"); print(Omg_hat)
@@ -60,7 +86,7 @@ def cscc_mrce(args):
                         c=0.5, p_tau=args.mrce_tau, alpha=1, 
                         TOL_ep=0.05, max_itr=args.mrce_max_itr, 
                         verbose=args.mrce_verbose, verbose_plots=args.mrce_verbose_plots)
-            if args.mrce_verbose:
+            if args.verbose:
                 print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
                 input('...press any key...')
             B_hat   = problem.fista_solver_B()
@@ -71,10 +97,24 @@ def cscc_mrce(args):
 
 if __name__ == "__main__":
 
-    """ Example: generate a small synthetic dataset with
-    python cscc_merge.py --generate_synthetic --synthetic_dir 'data-utility/syn_pMat0.2.pkl' --p 7 --q 7 --n 50 --pMat_noise 0.2 """
+    """ 
+    Example: generate a small synthetic dataset with
+    Command: python cscc_merge.py --generate_synthetic --synthetic_dir 'data-utility/syn_pMat0.2.pkl' --p 7 --q 7 --n 50 --pMat_noise 0.2 
+
+    Command: python cscc_merge.py --run_cscc --synthetic_dir 'data-utility/syn_pMat0.2.pkl'
+    """
 
     parser = argparse.ArgumentParser(description='Arguments for CSCC-MRCE.')
+
+    # Choose which algo to run
+    parser.add_argument('--run_all', default=False, action='store_true',
+                        help='Whether to run CSCC_MRCE to estimate Omg and B')
+    parser.add_argument('--run_cscc', default=False, action='store_true',
+                        help='Whether to run CSCC to estimate Omg')
+    parser.add_argument('--run_mrce', default=False, action='store_true',
+                        help='Whether to run MRCE to estimate B')
+    parser.add_argument('--verbose', default=False, action='store_true',
+                        help='Whether to display details of very-outer loop')
 
     # Pick or generate a dataset
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
@@ -101,6 +141,10 @@ if __name__ == "__main__":
                         help='dataset generation FGN:  Bernoulli draws for K entries')
     parser.add_argument('--success_prob_s2', type=float, default=0.2,
                         help='dataset generation FGN:  Bernoulli draws for Q rows')
+    parser.add_argument('--pct_nnz', type=float, default=0.2, 
+                        help='dataset generation Chol: percentage of non-zero entries in L matrix')
+    parser.add_argument('--base_nnz', type=float, default=0.7, 
+                        help='dataset generation Chol: base value of non-zero entries in L matrix')
 
     # Parameters of CSCC-Omg estimate
     parser.add_argument('--cscc_max_itr', type=int, default=20,
@@ -131,8 +175,6 @@ if __name__ == "__main__":
                         help='Use cvx solver in inner loop.')
     parser.add_argument('--no_constraints', default=False, action='store_true', 
                         help='Solve the problem with no constraints.')
-    parser.add_argument('--run_algo', default=False, action='store_true',
-                        help='Whether to run the algorithm')
 
     # Parameters of MRCE-B estimate
     parser.add_argument('--mrce_lambda', type=float, default=1,
