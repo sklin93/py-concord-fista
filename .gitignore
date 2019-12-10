@@ -1,6 +1,7 @@
 __pycache__
 *.c
 *.so
+*.pyc
 build/
 *.DS_Store
 config.yaml
