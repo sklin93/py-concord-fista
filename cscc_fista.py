@@ -114,7 +114,6 @@ class cscc_fista(object):
         # Accelerate via equality: tr(A.transpose()@A) = (A*A).sum()
         # print(Omg.diagonal())
         return -2 * np.log(np.abs(Omg.diagonal())).sum() + (Omg.transpose()*SOmg).sum()
-        # return - np.log(abs(np.diag(np.diag(Omg)))) + (Omg.transpose()*SOmg).sum()
 
     def likelihood_linfty(self, W):
         """ INNER stage objective 
@@ -235,7 +234,7 @@ class cscc_fista(object):
             plot_data['y(Omg)'] = list();    plot_data['y(Th)'] = list()
             plot_data['h(Omg)'] = list();    plot_data['h(Th)'] = list()
             plot_data['L1(Omg_x)'] = list(); plot_data['L1(Th_x)'] = list()
-            plot_data['tau'] = list()
+            plot_data['tau'] = list();       plot_data['subg_diff'] = list()
 
         # looping for optimization steps
         loop  = True
@@ -244,7 +243,7 @@ class cscc_fista(object):
         while loop:
             itr_diag = 0
             itr_back = 0
-            tau      = tau_n
+            tau = tau_n
 
             if self.verbose: 
                 print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
@@ -269,8 +268,8 @@ class cscc_fista(object):
                     Omg_x  = Omg_n.copy()
                     np.fill_diagonal(Omg_x, 0)
                     SOmg_n = self.S @ Omg_n
-                    # # if solution has zeros on diagonal, continue
-                    # if Omg_n.diagonal().min() < 1e-25 and itr_diag < 50:
+                    # if solution has zeros on diagonal, continue
+                    # if Omg_n.diagonal().min() < 1e-25 and itr_diag < 5:
                     #     itr_diag += 1
                     #     continue
                     
@@ -287,6 +286,10 @@ class cscc_fista(object):
             # end of else
             
             if self.plot_in_loop:
+                # check gradient
+                subg_diff = self.likelihood_convset(Th, self.S @ Th) \
+                        - self.likelihood_convset(Omg_n, self.S @ Omg_n) + ((Omg_n-Th)*G).sum()
+                plot_data['subg_diff'].append(subg_diff)
                 plot_data['tau'].append(tau)
 
             # FISTA momentum update step
@@ -303,7 +306,7 @@ class cscc_fista(object):
                 tau_n = tau
             elif self.step_type_out == 2:
                 tau_n = (Step * Step).sum() / (Step * (G_n - G)).sum()
-                tau_n = tau if tau_n < 0.0 else tau_n
+                tau_n = tau if (tau_n < 0.0 or tau_n > 0.5) else tau_n
                 # taun = (Step.transpose()@Step).trace() \
                 #              / (Step.transpose()@(Gn-G)).trace()
                 # using *.sum() is much faster
@@ -491,25 +494,30 @@ class cscc_fista(object):
         plt.subplot(231); plt.title('overall objective')
         plt.plot(plot_data['x'], plot_data['y(Th)'], 'c.-', label='y(Th)')
         plt.plot(plot_data['x'], plot_data['y(Omg)'], 'b.-', label='y(Omg)')
-        plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+        plt.yscale('log'); plt.show(block=False);
         if itr == 1: plt.legend(); 
         
         plt.subplot(232); plt.title('data fidelity term')
         plt.plot(plot_data['x'], plot_data['h(Th)'], 'c.-', label='h(Th)')
         plt.plot(plot_data['x'], plot_data['h(Omg)'], 'b.-', label='h(Omg)')
-        plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+        plt.yscale('log'); plt.show(block=False);
         if itr == 1: plt.legend();
         
         plt.subplot(233); plt.title('penalty term')
         plt.plot(plot_data['x'], plot_data['L1(Th_x)'], 'c.--', label='L1(Th)')
         plt.plot(plot_data['x'], plot_data['L1(Omg_x)'], 'b.--', label='L1(Omg)')
-        plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+        plt.yscale('log'); plt.show(block=False); 
         if itr == 1: plt.legend();
 
         plt.subplot(234); plt.title('step size')
         plt.plot(plot_data['x'], plot_data['tau'], 'r.--')
-        plt.show(block=False); plt.pause(0.01)
+        plt.show(block=False);
+
+        plt.subplot(235); plt.title('check subgrad')
+        plt.plot(plot_data['x'], plot_data['subg_diff'], 'r.--')
+        plt.yscale('symlog'); plt.show(block=False); 
         
+        plt.pause(0.01)
         return plot_data
 
     def check_symmetric(self, a, rtol=1e-05, atol=1e-08):
@@ -518,8 +526,8 @@ class cscc_fista(object):
 
 def set_mat_from_triu(vec, num_var, nnz_index):
     """ ARCHIVED
-        Build a symmetric matrix [M] from
-        a given vector [vec] which contains all upper triangular entries
+        Build a symmetric matrix [M] from a given vector [vec] 
+        which contains all upper triangular entries
         and a corresponding non-zero index vector [nnz_index] """
 
     num_edge = int(num_var*(num_var-1)/2)
