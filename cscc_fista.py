@@ -60,7 +60,7 @@ class cscc_fista(object):
 
         # solution initialization
         # make sure initial B_init has all zero diagonals
-        self.Omg_init    = np.identity(num_var)
+        self.Omg_init    = np.identity(num_var) if sample_cov else self.get_sample_cov(D)
         self.B_init      = np.zeros(self.Omg_init.shape)
         self.Omg_ori     = Omg_ori
 
@@ -132,6 +132,7 @@ class cscc_fista(object):
         self.A   = Th - tau * G
         self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
+        print("\nnon-zeros in (A): {0:d}".format(np.count_nonzero(self.A)))
 
         if not self.no_constraints:
             # Use inner stage to compute current optimal B.
@@ -141,19 +142,38 @@ class cscc_fista(object):
                 B = self.solver_linfty_cvx()
             else:
                 B = self.solver_linfty()
+            # else:
+            #     B = self.solver_linfty_cvx(); np.fill_diagonal(B, 0)
+            #     print('B cvx:'); pprint(B)
+            #     W   = self.A_X - self.p_gamma * self.p_lambda * B
+            #     print("B cvx obj {0:.5f}".format(self.likelihood_linfty(W)))
+
+            #     B = self.solver_linfty();     np.fill_diagonal(B, 0)
+            #     print('B fista:'); pprint(B)
+            #     W   = self.A_X - self.p_gamma * self.p_lambda * B
+            #     print("B cvx obj {0:.5f}".format(self.likelihood_linfty(W)))
+            
+            #     np.fill_diagonal(B, 0)
+            #     print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
+            #     input("... press any key to continue ..")
+
             np.fill_diagonal(B, 0)
+            print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
 
             # proximal operator of convex set constraint
             # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
             W   = self.A_X - self.p_gamma * self.p_lambda * B
+            print("non-zeros in (A_x - gamma * lambda * B): {0:d}".format(np.count_nonzero(W)))
             # add diagonal entries from A
             Omg = W * self.pMat + np.diag(np.diag(self.A))
+            print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
         
         else:
             print("~ ~ ~ No constraint is applied.")
             LambdaMat = self.p_lambda * np.ones((self.num_var, self.num_var))
             np.fill_diagonal(LambdaMat, 0)
             Omg = np.sign(self.A) * np.maximum(abs(self.A)-tau*LambdaMat, 0.0)
+            print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
 
         return Omg
 
@@ -161,7 +181,7 @@ class cscc_fista(object):
         """cvx version of inner stage solver,
         specifically for edge-forbidden constraints"""
     
-        A_x  = self.A_X
+        A_x  = self.A_X.copy()
         dim  = A_x.shape[0]
         B    = cvx.Variable((dim, dim))
         loss = 0
@@ -172,6 +192,9 @@ class cscc_fista(object):
                 if self.pMat[i,j] == 1:
                     loss += cvx.norm(A_x[i,j]-self.p_gamma*self.p_lambda*B[i,j]) ** 2
 
+        if self.verbose_inn:
+            print("\n- - - solving inner problem with CVXPY - - - ")
+
         obj = cvx.Minimize(loss)
         constraints = [-1 <= B, B <= 1]
 
@@ -180,7 +203,7 @@ class cscc_fista(object):
         # print("Is this problem DGP?", prob.is_dgp())
 
         if self.verbose_inn:
-            print("\n- - - solving inner problem with CVXPY - - - ")
+            print("\n- - - inner problem solved with CVXPY - - - ")
             # print("status:", prob.status)
             print("optimal value:", prob.value)
             print("solution B_x: "); print(B.value)
@@ -225,6 +248,16 @@ class cscc_fista(object):
         # initial A
         self.A   = Th - self.p_tau * G
         self.A_X = self.A.copy()
+        if self.verbose:
+            print("initial value given Omg_init: y {0:.3f}, h {1:.3f}, L1 {2:.3f}".format(
+                h + np.abs(Omg).sum(), h, np.abs(Omg).sum()))
+            if self.Omg_ori.size != 0:
+                print("groundtrth value given Omg_ori: y {0:.3f}, h {1:.3f}, L1 {2:.3f}".format(
+                    self.likelihood_convset(self.Omg_ori, self.S @ self.Omg_ori) 
+                        + np.abs(self.Omg_ori).sum(), 
+                    self.likelihood_convset(self.Omg_ori, self.S @ self.Omg_ori), 
+                    np.abs(self.Omg_ori).sum()))
+            input('... press any key to continue ...')
 
         if self.plot_in_loop:
             # plt.ion() ## Note this correction
@@ -235,6 +268,19 @@ class cscc_fista(object):
             plot_data['h(Omg)'] = list();    plot_data['h(Th)'] = list()
             plot_data['L1(Omg_x)'] = list(); plot_data['L1(Th_x)'] = list()
             plot_data['tau'] = list();       plot_data['subg_diff'] = list()
+
+            # plot_data['x'].append(0)
+            # plot_data['y(Omg)'].append(h + np.abs(Omg).sum())
+            # plot_data['y(Th)'].append(h + np.abs(Th).sum())
+            # plot_data['h(Omg)'].append(h)
+            # plot_data['h(Th)'].append(h)
+            # plot_data['L1(Omg_x)'].append(self.p_lambda * np.abs(Omg).sum()) 
+            # plot_data['L1(Th_x)'].append(self.p_lambda * np.abs(Th).sum())  
+
+            # subg_diff = self.likelihood_convset(Th, self.S @ Th) \
+            #             - self.likelihood_convset(Omg, self.S @ Omg) + ((Omg-Th)*G).sum()
+            # plot_data['subg_diff'].append(subg_diff)
+            # plot_data['tau'].append(tau_n)
 
         # looping for optimization steps
         loop  = True
@@ -354,12 +400,13 @@ class cscc_fista(object):
                 print("symmetric(Th, G_n, Omg_n):{0},{1},{2}".format(self.check_symmetric(Th), self.check_symmetric(G_n), self.check_symmetric(Omg_n)))
                 # if self.Omg_ori.size != 0:
                 #     self.nz_ori = self.Omg_ori.copy().flatten()
-                #     self.nz_n = Omg_n.copy().flatten()
+                #     self.nz_n = Omg_n.copy().flatten()plot_in_loop
                 #     print("Overlap with ground-truth: {0:d} entries, {1:.2f} percent".format())
                 if np.isnan(h): sys.exit()
             
                 if self.plot_in_loop:
                     plot_data = self.plot_convset(plot_data, itr, f_n, h_n, Th, Omg_x)
+                    
 
             # check termination condition:
             loop = itr < self.MAX_ITR and cur_err > self.TOL
@@ -376,6 +423,8 @@ class cscc_fista(object):
         
         plt.show(block=True)
         self.result = Omg_n.copy()
+        with open('record/solution_Omg.pkl', 'wb') as pfile:
+            pickle.dump(Omg_n, pfile)
         return Omg_n, label
     # end of solver_convset
 
@@ -494,7 +543,8 @@ class cscc_fista(object):
         plt.subplot(231); plt.title('overall objective')
         plt.plot(plot_data['x'], plot_data['y(Th)'], 'c.-', label='y(Th)')
         plt.plot(plot_data['x'], plot_data['y(Omg)'], 'b.-', label='y(Omg)')
-        plt.yscale('log'); plt.show(block=False);
+        plt.yscale('log'); 
+        plt.show(block=False);
         if itr == 1: plt.legend(); 
         
         plt.subplot(232); plt.title('data fidelity term')
@@ -619,7 +669,7 @@ def test_synthetic(syndata_file, args):
         "h function value (data fidelity):"+"{:.4f}".format(h_n)+"\n"+ \
         "h function comparable value:"+"{:.4f}".format(h_n/2)+"\n"+ \
         "f function value:"+"{:.4f}".format(f_n))
-    input('... press any key to continue ...')
+    
     
     # partial correlation graph estimation
     problem  = cscc_fista(D, num_var=num_var, pMat=pMat, 

@@ -21,3 +21,4 @@ function A = inline_vec2mat(v, n)
 	A = A + A' + eye(n);
 
 end
+

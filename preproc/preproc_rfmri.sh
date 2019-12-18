@@ -1,5 +1,5 @@
 # Usage exapmles:
-# ./preproc_rfMRI.sh /work/code/fs125 LANGUAGE ROIv_scale33 true true false true true
+# ./preproc_rfmri.sh ~/localrepo/fs125 REST1 ROIv_scale33 false false false false false false
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
@@ -8,12 +8,18 @@
 # with a parcellation in a different scale or resolution.
 
 
+
+# MNINonLinear/Results/tfMRI_EMOTION_LR/tfMRI_EMOTION_LR.nii.gz
+# MNINonLinear/Results/rfMRI_REST1_LR/rfMRI_REST1_LR.nii.gz
+
+# HCP/112112/MNINonLinear/Results/rfMRI_REST1_LR/rfMRI_REST1_LR.nii.gz
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ####
 # Preparing
 
 # working directory where you save your metadata and final results
 WORK_DIR="$1"
-fMRI_TASK="$2" # fMRI_TASK="LANGUAGE"
+fMRI_TASK="$2" # fMRI_TASK="REST1"
 ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
 
 # phase encoding options
@@ -26,26 +32,32 @@ chmod +x *.sh
 FLAG_DOWNLOAD="$4"
 FLAG_UPSAMPING="$5"
 FLAG_SMOOTHING="$6"
-FLAG_TSEXTRACT="$7"
-FLAG_OVERWRITE="$8"
+FLAG_BPFILTERING="$7"
+FLAG_TSEXTRACT="$8"
+FLAG_OVERWRITE="$9"
 
 time_start_all_steps="$(date -u +%s)"
+time_start_h=$(date '+%Y-%m-%d_%H%M')
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
 
 DSI_SERVER_NAME="salinas.cs.ucsb.edu"
-SUBJECT_FILE_NAME="test_fs125_subject_list.txt"
+SUBJECT_FILE_NAME="fs125_subject_list.txt"
 
 # check if the list already exits
 if [ ! -f $WORK_DIR/$SUBJECT_FILE_NAME ]; then
 	scp ./get_subject_list.sh $DSI_SERVER_NAME:~
 	ssh $DSI_SERVER_NAME "chmod +x *.sh"
-	ssh $DSI_SERVER_NAME "./get_subject_list.sh $SUBJECT_FILE"
+    ssh $DSI_SERVER_NAME "touch $SUBJECT_FILE_NAME"
+	ssh $DSI_SERVER_NAME "./get_subject_list.sh $SUBJECT_FILE_NAME"
 	scp $DSI_SERVER_NAME:~/$SUBJECT_FILE_NAME $WORK_DIR/
+    echo "Remote manipulation on $DSI_SERVER_NAME completed."
 else
 	echo "Existing subject list found: $WORK_DIR/$SUBJECT_FILE_NAME"
 fi
+
+cp -r $WORK_DIR/$SUBJECT_FILE_NAME $WORK_DIR/"fs125_subject_list_${time_start_h}.txt"
 
 
 
@@ -192,6 +204,54 @@ else
 fi
 
 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# Bandpass filtering for resting-state fMRI
+# We use AFNI implementation 3dBandpass.
+
+# Other options: 
+# 1. AFNI afni_proc.py
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/afni_proc.py_sphx.html
+# 2. AFNI 3dTproject
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/3dTproject_sphx.html
+# 3. AFNI 3dRSFC
+# If you are using 3dBandpass for RS-FMRI analysis, you could use 3dRSFC instead, which has 3dBandpass internally at its heart but adds the functionality of calculating RSFC parameters (ALFF, fALFF, RSFA, etc.) at the same time. To add another popular resting state parameter into the mix, 3dReHo can be used separately for quick ReHo calculation as well.
+
+# Discussions: https://neurostars.org/t/bandpass-filtering-different-outputs-from-fsl-and-nipype-custom-function/824
+
+if $FLAG_BPFILTERING; then
+    while read -r subject;
+    do
+        echo "Step 3 (bandpass filtering): Subject $subject ......"
+        for phase in "${PHASE_ENCODING[@]}"
+        do 
+            # Set up input rfMRI image dir and output dir
+            if $FLAG_SMOOTHING; then
+                rfMRI_bp_input=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_smoothed_$phase.nii.gz
+                rfMRI_bp_output=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_smoothed_bp_$phase.nii.gz
+            else
+                rfMRI_bp_input=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
+                rfMRI_bp_output=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_bp_$phase.nii.gz
+            fi
+            if [ ! -f $rfMRI_bp_output ]; then
+                echo "Bandpass filtering started, input: $rfMRI_125mm"
+                time_start="$(date -u +%s)"
+                # Usage: 3dBandpass [options] fbot ftop dataset
+                # add `-nodetrend` only if the dataset had been detrended already in other programs.
+                3dBandpass -quiet -prefix $rfMRI_bp_output 0.008 0.08 $rfMRI_bp_input
+                time_end="$(date -u +%s)"
+                time_elapsed="$(bc <<<"$time_end-$time_start")"
+                echo "Bandpass filtering finished in ${time_elapsed} seconds, \
+                    output: $rfMRI_bp_output"
+            else
+                echo "Existing bandpass filtered rfMRI found: $rfMRI_bp_output"
+            fi
+        done
+    done < $SUBJECT_LIST
+else
+    echo "Bandpass filtering is disabled. Check settings in script."
+fi
+
+
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Create binary masks from atlas definition nii image
@@ -215,7 +275,7 @@ Intensity_Max=`fslstats ${ATLAS_FILE_NAME} -R | cut -d " " -f 2 `
 ROI_NUM=${Intensity_Max%.*}
 ROI_INDEX_LIST=`seq 1 $ROI_NUM`
 if [ -d "${MASK_DIR}" ]; then
-    echo "    Atlas:$ATLAS_NAME/$ATLAS_VERSION.nii.gz contains ${ROI_NUM} ROI regions."
+    echo "- Atlas:$ATLAS_NAME/$ATLAS_VERSION.nii.gz contains ${ROI_NUM} ROI regions."
 fi
 
 

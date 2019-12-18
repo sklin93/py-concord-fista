@@ -5,9 +5,9 @@ python cscc_merge.py \
 --cscc_lambda 0.1 \
 --cscc_outer_verbose \
 --cscc_TOL 1e-3 --cscc_TOL_inn 1e-2 \
---cscc_max_itr 100 \
+--cscc_max_itr 25 \
 --cscc_step_type_out 1 --cscc_const_ss_out 0.02 \
---cscc_tau 2 \
---cscc_gamma 0.1 \
-# --no_constraints
-# --inner_cvx_solver\
+--cscc_tau 1 \
+--cscc_gamma 5 \
+# --no_constraints 
+# --inner_cvx_solver \

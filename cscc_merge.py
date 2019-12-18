@@ -38,14 +38,15 @@ def cscc_mrce(args):
         Omg_hat = np.zeros((data.q, data.q))
         record_label = os.path.splitext(os.path.basename(args.synthetic_dir))[0]
         problem = cscc_fista(D=data.Y-np.matmul(data.X, data.B), 
-                    pMat=data.pMat, num_var=data.q, 
+                    pMat=np.ones((data.q, data.q)), # pMat=data.pMat, 
+                    num_var=data.q, 
                     step_type_out = args.cscc_step_type_out, const_ss_out = args.cscc_const_ss_out, 
                     p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
                     MAX_ITR=args.cscc_max_itr, 
                     TOL=args.cscc_TOL, TOL_inn=args.cscc_TOL_inn,
                     verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
                     no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
-                    record_label=record_label)
+                    record_label=record_label, Omg_ori=data.Omg)
         Omg_hat, label = problem.solver_convset()
         if args.verbose:
             print("\n\n= = = Finished = = =\nGroundtruth Omega:"); print(data.Omg)
@@ -172,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('--cscc_outer_verbose', default=True, action='store_true',
                         help='Whether to display optimization updates of outer loop')
     parser.add_argument('--inner_cvx_solver', default=False, action='store_true',
-                        help='Use cvx solver in inner loop.')
+                        help='Use cvx solver in inner loop. Not recommended for high dimensional datasets such as HCP. Works ok on small synthetic datasets.')
     parser.add_argument('--no_constraints', default=False, action='store_true', 
                         help='Solve the problem with no constraints.')
 

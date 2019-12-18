@@ -589,8 +589,8 @@ def test(args):
         print('nonzero B-entry count: ', np.count_nonzero(data.B))
 
         Omg_ori = np.linalg.inv(data.Sigma_E)
-        print('nonzero Omg-entry count: ', np.count_nonzero(Omg_ori))
-        print('check non-negative definiteness: '+str(np.all(np.linalg.eigvals(Omg_ori) >= 0)))
+        print('\nnonzero Omg-entry count: ', np.count_nonzero(Omg_ori))
+        print('check non-negative definiteness: '+str(np.all(np.linalg.eigvals(Omg_ori) >= 0))+'\n')
 
         XYOmg = np.matmul(np.matmul(data.X.transpose(), data.Y), Omg_ori)
         G = (2/data.n) * (np.matmul(np.matmul(data.X.transpose(), data.X), np.matmul(data.B, Omg_ori)) - XYOmg)
@@ -609,6 +609,8 @@ def test(args):
         print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
         input('...press any key...')
         B = problem.fista_solver_B()
+        with open('record/solution_B.pkl', 'wb') as pfile:
+            pickle.dump(B, pfile)
 
     if 'problem' in locals():
         print('\n\n\nobjective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
@@ -619,7 +621,7 @@ def test(args):
 
 if __name__ == "__main__":
 
-    # example: python cc_mrce.py --synthetic_dir 'data-utility/synB-500.pkl' --FISTA
+    # example: python cc_mrce.py --synthetic_dir 'data-utility/synB-500.pkl' --FISTA --verbose --verbose_plots
     
     parser = argparse.ArgumentParser(description='Arguments for MRCE B-update.')
 

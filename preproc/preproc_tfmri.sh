@@ -1,6 +1,7 @@
 # Usage exapmles:
 # ./preproc_tfmri.sh ~/localrepo/glasso/fs125 LANGUAGE ROIv_scale33 false false false true
 # ./preproc_tfmri.sh /work/code/fs125 LANGUAGE ROIv_scale33 false false false true
+# ./preproc_tfmri.sh ~/localrepo/fs125 LANGUAGE ROIv_scale33 false false false dalse
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
@@ -31,13 +32,15 @@ FLAG_TSEXTRACT="$7"
 FLAG_OVERWRITE="$8"
 
 time_start_all_steps="$(date -u +%s)"
+time_start_h=$(date '+%Y-%m-%d_%H%M')
+
 echo "\n\n\n = = = = = New run started = = = = = =\n"
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
 
 DSI_SERVER_NAME="salinas.cs.ucsb.edu"
-SUBJECT_FILE_NAME="test_fs125_subject_list.txt"
+SUBJECT_FILE_NAME="tfmri_fs125_subject_list.txt"
 
 # check if the list already exits
 if [ ! -f $WORK_DIR/$SUBJECT_FILE_NAME ]; then
@@ -51,7 +54,7 @@ else
 	echo "Existing subject list found: $WORK_DIR/$SUBJECT_FILE_NAME"
 fi
 
-cp -r $WORK_DIR/$SUBJECT_FILE_NAME $WORK_DIR/"test_fs125_subject_list_${time_start_all_steps}.txt"
+cp -r $WORK_DIR/$SUBJECT_FILE_NAME $WORK_DIR/"tfmri_fs125_subject_list_${time_start_h}.txt"
 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
