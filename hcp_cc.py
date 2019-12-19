@@ -288,7 +288,8 @@ def reconstruct_err(task, filename, rnd_compare=False):
 	# print('average error percentage',tot_err_perct/n)
 	# return err
 
-def mrce_sf(task, b_lam=0.1, omega_lam=0.1, cross_val=10, load=False, OUT_MAX_ITR=20):
+def mrce_sf(task, b_lam=0.1, omega_lam=0.1, cross_val=10, load=False, 
+			OUT_MAX_ITR=20, out_verbose=False, plot_verbose=False):
 	def get_B_omega(vec_s, vec_f, pMat=None, b_lam=b_lam, omega_lam=omega_lam):
 		p = vec_s.shape[1]
 		q = vec_f.shape[1]
@@ -309,9 +310,9 @@ def mrce_sf(task, b_lam=0.1, omega_lam=0.1, cross_val=10, load=False, OUT_MAX_IT
 						# verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
 						# no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
 						# record_label=record_label)
-						p_lambda=omega_lam,
+						p_lambda=omega_lam, 
 						MAX_ITR=20, TOL=1e-3, TOL_inn=1e-2,
-						verbose=True, verbose_inn=False,
+						verbose=out_verbose, verbose_inn=False, plot_in_loop=plot_verbose,
 						no_constraints=False, inner_cvx_solver=False)
 			Omg_hat, _ = problem.solver_convset()
 			# (estimate B) 
@@ -322,7 +323,7 @@ def mrce_sf(task, b_lam=0.1, omega_lam=0.1, cross_val=10, load=False, OUT_MAX_IT
                         step_type=1, const_ss=0.1, p_tau=0.7,
                         c=0.5, alpha=1, TOL_ep=0.05, max_itr=50, 
                         # verbose=args.mrce_verbose, verbose_plots=args.mrce_verbose_plots)
-                        verbose=True, verbose_plots=True)
+                        verbose=out_verbose, verbose_plots=plot_verbose)
 			B_hat   = problem.fista_solver_B()
 			cur_obj = problem.likelihood_B(B_hat)
 			print('objective at B: {:.3e}'.format(cur_obj))

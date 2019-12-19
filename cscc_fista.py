@@ -132,7 +132,8 @@ class cscc_fista(object):
         self.A   = Th - tau * G
         self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
-        print("\nnon-zeros in (A): {0:d}".format(np.count_nonzero(self.A)))
+        if self.verbose:
+            print("\nnon-zeros in (A): {0:d}".format(np.count_nonzero(self.A)))
 
         if not self.no_constraints:
             # Use inner stage to compute current optimal B.
@@ -158,15 +159,18 @@ class cscc_fista(object):
             #     input("... press any key to continue ..")
 
             np.fill_diagonal(B, 0)
-            print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
+            if self.verbose:
+                print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
 
             # proximal operator of convex set constraint
             # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
             W   = self.A_X - self.p_gamma * self.p_lambda * B
-            print("non-zeros in (A_x - gamma * lambda * B): {0:d}".format(np.count_nonzero(W)))
+            if self.verbose:
+                print("non-zeros in (A_x - gamma * lambda * B): {0:d}".format(np.count_nonzero(W)))
             # add diagonal entries from A
             Omg = W * self.pMat + np.diag(np.diag(self.A))
-            print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
+            if self.verbose:
+                print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
         
         else:
             print("~ ~ ~ No constraint is applied.")
@@ -307,8 +311,8 @@ class cscc_fista(object):
                 while True:
                     if itr_diag !=0 or itr_back != 0:
                         tau = tau * self.c_outer
-                    # if self.verbose: 
-                    print("\n = = = line-search itr_back:{0:d}, itr_diag:{1:d}, tau: {2:.2e} = = = ".format(itr_back, itr_diag, tau))
+                    if self.verbose: 
+                        print("\n = = = line-search itr_back:{0:d}, itr_diag:{1:d}, tau: {2:.2e} = = = ".format(itr_back, itr_diag, tau))
 
                     Omg_n  = self.update_convset(Th, G, tau)
                     Omg_x  = Omg_n.copy()
@@ -416,8 +420,9 @@ class cscc_fista(object):
                 with open('record/cscc-error_'+label+'.csv', 'a') as f:
                     fwriter = csv.writer(f)
                     fwriter.writerow([itr] + [cur_err])
-                with open('record/cscc-figdata_'+label+'.pkl', 'wb') as f:
-                    pickle.dump(plot_data, f)
+                if self.plot_in_loop:
+                    with open('record/cscc-figdata_'+label+'.pkl', 'wb') as f:
+                        pickle.dump(plot_data, f)
                 print('dumping records:'+label)
          # end of (while loop)
         
