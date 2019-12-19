@@ -64,17 +64,24 @@ def plot_edge(omega, r_name, idx, edge_idx):
 if __name__ == '__main__':
 	fdir = 'fs_results/'
 	task = sys.argv[1]
+	lam = float(sys.argv[2])
+
 	if task == 'resting':
 		r_name = info_dict['data']['aal']
 	else:
 		r_name = info_dict['data']['hcp']
 	# load omega
 	if task == 'resting' or task[:6] == 'syn_sf':
-		omega = load_omega(task, mid='_train_', lam=9e-05) #resting use 0.25
+		# omega = load_omega(task, mid='_train_', lam=9e-05)
+		B = np.load(fdir+str(lam)+'_mrce_B_'+task+'.npy')
+		omega = B
 	else:
-		omega = load_omega(task, mid='_er_train_hcp2_', lam=0.0014)
+		# omega = load_omega(task, mid='_er_train_hcp2_', lam=0.0014)
+		B = np.load(fdir+str(lam)+'_mrce_B_'+task+'.npy')
+		omega = B # just for visualization purpose (tmp, #TODO cleanup)
 	# omega = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
-	omega = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
+	# omega = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
+
 	# visulize omega_fs nz entries
 	plt.figure()
 	omega_vis = omega.copy()
@@ -83,7 +90,8 @@ if __name__ == '__main__':
 	for _ in range(3):
 		omega_vis = binary_dilation(omega_vis)
 	 
-	plt.imshow(omega_vis, cmap='Blues')
+	# plt.imshow(omega_vis, cmap='Blues')
+	plt.imshow(omega_vis)
 	plt.axis('off')
 	plt.savefig(fdir+'fs_'+task+'.png', bbox_inches = 'tight', pad_inches = 0)
 	plt.show()
@@ -126,7 +134,8 @@ if __name__ == '__main__':
 
 	print(s_sum.max(), s_sum.mean(), s_sum.min())
 	sorted_idx_s = np.argsort(s_sum)[::-1]
-	for i in range(s_topk):
+	# for i in range(s_topk):
+	for i in range(np.count_nonzero(s_sum)):
 		print('\ncorrelated function number:', s_sum[sorted_idx_s[i]])
 		idx = idx_dict[sorted_idx_s[i]]
 		print(r_name[idx[0]], r_name[idx[1]])
@@ -138,7 +147,7 @@ if __name__ == '__main__':
 	tmp = np.sum(vec_s,axis=0)
 	print('\nmax strength of an edge:', tmp.max())
 	print('top important k edges strength:', tmp[sorted_idx_s[:s_topk]], '\n') #emm seems the answer is no
-
+	import ipdb; ipdb.set_trace()
 	# 3: for each functional activation, plot "which structral edges is correlated with it" [per row]
 	f_topk = 3
 	f_sum = np.sum(omega_vis, axis=1)
@@ -149,7 +158,7 @@ if __name__ == '__main__':
 		print('\ncorrelated structral edge number:', f_sum[sorted_idx_f[i]])
 		print(sorted_idx_f[i], r_name[idx[0]], r_name[idx[1]])
 		plot_edge(omega, r_name, idx_dict, sorted_idx_f[i])
-
+	import ipdb; ipdb.set_trace()
 	# 4: check connected component for all function edges
 	cc = 0
 	ctr = 0

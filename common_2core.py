@@ -92,30 +92,64 @@ def common_triangles(omega, r_name, idx_dict):
 			print(appearance_triangles[cur_idx],r_name[idx_dict_3[cur_idx][0]],
 					r_name[idx_dict_3[cur_idx][1]],r_name[idx_dict_3[cur_idx][2]])
 	return appearance_triangles
-		
+
+# tmp, for collecting all mrce B common edges
+def mrce_B_vis(tasks, r_name, idx_dict):
+	s_map = {}
+	for task in tasks:
+		B = np.load('fs_results/0.1_mrce_B_'+task+'.npy')
+		omega = B.T
+		omega[omega!=0]=1
+		s_sum = np.sum(omega, axis=0)
+
+		print(task, np.count_nonzero(s_sum), s_sum.max(), s_sum.mean(), s_sum.min())
+		sorted_idx_s = np.argsort(s_sum)[::-1]
+		for i in range(np.count_nonzero(s_sum)):
+			if sorted_idx_s[i] not in s_map:
+				s_map[sorted_idx_s[i]] = s_sum[sorted_idx_s[i]]
+			else:
+				s_map[sorted_id_s[i]] += s_sum[sorted_idx_s[i]]
+	print('\n')
+	all_node_used = []
+	for s_id, val in s_map.items():
+		idx = idx_dict[s_id]
+		if val > 50:
+			print(r_name[idx[0]], r_name[idx[1]], val)
+			print(idx[0], idx[1])
+			if idx[0] not in all_node_used:
+				all_node_used.append(idx[0])
+			if idx[1] not in all_node_used:
+				all_node_used.append(idx[1])
+	import ipdb; ipdb.set_trace()
+
 if __name__ == '__main__':
 	with open('config.yaml') as info:
 		info_dict = yaml.load(info)
 	vis_dir = '/home/sikun/Downloads/BrainNetViewer/vis/'
 	# task = sys.argv[1]
 	tasks = ['EMOTION','GAMBLING','LANGUAGE','MOTOR','RELATIONAL','SOCIAL','WM']
-	inall = []
-	for task in tasks:
-		if task == 'resting':
-			r_name = info_dict['data']['aal']
-			omega = load_omega(task,mid='_',lam=0.1)
-		else:
-			r_name = info_dict['data']['hcp']
-			omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
-		r = len(r_name)
-		idx_dict = build_dict(r)
 
-		# appearance_nodes = common_nodes(omega, r_name, idx_dict)
-		appearance_edges = common_edges(omega, r_name, idx_dict, vis_dir)
-		# appearance_triangles = common_triangles(omega, r_name, idx_dict)
+	r_name = info_dict['data']['hcp']
+	r = len(r_name)
+	idx_dict = build_dict(r)
+
+	mrce_B_vis(tasks, r_name, idx_dict)
+
+	# inall = []
+	# for task in tasks:
+	# 	if task == 'resting':
+	# 		r_name = info_dict['data']['aal']
+	# 		omega = load_omega(task,mid='_',lam=0.1)
+	# 	else:
+	# 		r_name = info_dict['data']['hcp']
+	# 		omega = load_omega(task,mid='_1stage_er2_',lam=0.0014)
 		
-		in_2core = np.asarray(appearance_edges)
-		in_2core[in_2core!=0] = 1
-		inall.append(in_2core)
-	inall = np.sum(np.stack(inall),axis=0)
-	print(np.where(inall==7)[0].shape)
+	# 	# appearance_nodes = common_nodes(omega, r_name, idx_dict)
+	# 	appearance_edges = common_edges(omega, r_name, idx_dict, vis_dir)
+	# 	# appearance_triangles = common_triangles(omega, r_name, idx_dict)
+		
+	# 	in_2core = np.asarray(appearance_edges)
+	# 	in_2core[in_2core!=0] = 1
+	# 	inall.append(in_2core)
+	# inall = np.sum(np.stack(inall),axis=0)
+	# print(np.where(inall==7)[0].shape)

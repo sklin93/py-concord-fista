@@ -257,7 +257,7 @@ class cscc_fista(object):
                         + np.abs(self.Omg_ori).sum(), 
                     self.likelihood_convset(self.Omg_ori, self.S @ self.Omg_ori), 
                     np.abs(self.Omg_ori).sum()))
-            input('... press any key to continue ...')
+            # input('... press any key to continue ...')
 
         if self.plot_in_loop:
             # plt.ion() ## Note this correction

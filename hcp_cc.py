@@ -4,6 +4,7 @@ import pickle
 import sys
 from cc_fista import cc_fista, standardize, pseudol
 from cc_mrce import mrce
+from cscc_fista import cscc_fista
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -48,15 +49,15 @@ def data_prep(task, v1=True, subj_ids=None, flatten=True, normalize_s=False):
 		f = np.stack(f, axis=2)
 	else:
 		if v1:
-			sMat = loadmat(info_dict['data_dir']+info_dict['s_file']['streamline'])
+			sMat = loadmat(info_dict['data_dir']+'HCP-V1/'+info_dict['s_file']['streamline'])
 			s = sMat['X']
 			# fMat = loadmat(info_dict['data_dir']+info_dict['f_file'])
-			fMat = loadmat(info_dict['data_dir']+'tfMRI-'+task+'.mat')
+			fMat = loadmat(info_dict['data_dir']+'HCP-V1/'+'tfMRI-'+task+'.mat')
 			f = fMat['X']
 		else:
-			with open(info_dict['data_dir']+info_dict['s_file'][task], 'rb') as f:
-				sdata = pickle.load(f)
-			with open(info_dict['data_dir']+info_dict['f_file'][task], 'rb') as f:
+			with open(info_dict['data_dir']+'HCP-V2/'+info_dict['s_file'][task], 'rb') as f:
+				sdata = pickle.load(f, encoding='latin1')
+			with open(info_dict['data_dir']+'HCP-V2/'+info_dict['f_file'][task], 'rb') as f:
 				fdata = pickle.load(f, encoding='latin1')
 			# if subject ids are not specified, then load all the subject data
 			if subj_ids == None:
@@ -88,9 +89,26 @@ def data_prep(task, v1=True, subj_ids=None, flatten=True, normalize_s=False):
 		vec_f = f
 	if normalize_s:
 		vec_s -= vec_s.min()
-		vec_s /= vec_s.max()
+		vec_s = vec_s / vec_s.max()
 	assert vec_s.shape == vec_f.shape, 'F and S size mismatch.'
 	return vec_s, vec_f
+
+def f_pMat(d):
+	'''F-only pMat'''
+	ctr = 0
+	id_map = {}
+	for i in range(d-1):
+		for j in range(i+1,d):
+			id_map[ctr] = (i,j)
+			ctr += 1
+	pMat = np.zeros((ctr, ctr))
+	for i in range(ctr-1):
+		for j in range(i+1, ctr):
+			if len(set(id_map[i] + id_map[j])) != 4:
+				pMat[i,j] = 1
+	pMat = pMat + pMat.T
+	np.fill_diagonal(pMat, 1)
+	return pMat
 
 def s_f_pMat(d): # d is p/2
 	'''
@@ -111,7 +129,7 @@ def s_f_pMat(d): # d is p/2
 	return np.concatenate((up,low),axis=0)
 
 def f_only(task, lam):
-	# original version
+	# CONCORD fista on F
 	_, vec = data_prep(task)
 	fi = cc_fista(vec,lam,steptype=1)
 	print('Input vector shape: ', vec.shape)
@@ -270,15 +288,109 @@ def reconstruct_err(task, filename, rnd_compare=False):
 	# print('average error percentage',tot_err_perct/n)
 	# return err
 
-def mrce_sf(task, lam=0.1):
-	vec_s, vec_f = data_prep(task)
-	
-	problem = mrce(X=vec_s, Y=vec_f, Omg=np.array([]), lamb2=lam, 
-		TOL_ep=0.05, max_itr=50, step_type=1, c=0.5, p_tau=0.7, alpha=1, 
-		const_ss=0.1, B_init=np.array([]), verbose=True, verbose_plots=True)
-	input('...press any key...')
-	B = problem.fista_solver_B()
-	import ipdb; ipdb.set_trace()
+def mrce_sf(task, b_lam=0.1, omega_lam=0.1, cross_val=10, load=False, OUT_MAX_ITR=20):
+	def get_B_omega(vec_s, vec_f, pMat=None, b_lam=b_lam, omega_lam=omega_lam):
+		p = vec_s.shape[1]
+		q = vec_f.shape[1]
+		B_hat   = np.zeros((p, q))
+		Omg_hat = np.zeros((q, q))
+		obj = 0
+
+		for i in range(OUT_MAX_ITR):
+			print('Omg-B combined loop: ', i)
+			# (estimate Omega)
+			# partial correlation graph estimation
+			problem = cscc_fista(D=vec_f-np.matmul(vec_s, B_hat),
+						pMat=pMat, num_var=q,
+						# step_type_out = args.cscc_step_type_out, const_ss_out = args.cscc_const_ss_out,
+						# p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau,
+						# MAX_ITR=args.cscc_max_itr,
+						# TOL=args.cscc_TOL, TOL_inn=args.cscc_TOL_inn,
+						# verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
+						# no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
+						# record_label=record_label)
+						p_lambda=omega_lam,
+						MAX_ITR=20, TOL=1e-3, TOL_inn=1e-2,
+						verbose=True, verbose_inn=False,
+						no_constraints=False, inner_cvx_solver=False)
+			Omg_hat, _ = problem.solver_convset()
+			# (estimate B) 
+			# regression coefficient estimation
+			problem = mrce(Omg=np.linalg.matrix_power(Omg_hat,2),
+						lamb2=b_lam, X=vec_s, Y=vec_f,
+                        # step_type=args.mrce_step_type, const_ss=args.mrce_const_ss, p_tau=args.mrce_tau,
+                        step_type=1, const_ss=0.1, p_tau=0.7,
+                        c=0.5, alpha=1, TOL_ep=0.05, max_itr=50, 
+                        # verbose=args.mrce_verbose, verbose_plots=args.mrce_verbose_plots)
+                        verbose=True, verbose_plots=True)
+			B_hat   = problem.fista_solver_B()
+			cur_obj = problem.likelihood_B(B_hat)
+			print('objective at B: {:.3e}'.format(cur_obj))
+			# stopping criterion
+			thr = 1e-3
+			if obj - cur_obj < thr:
+				break
+			obj = cur_obj
+
+		return B_hat, Omg_hat
+
+	def eval(vec_s, vec_f, B):
+		pred_f = np.matmul(vec_s, B)
+		# recon error
+		err = norm(vec_f - pred_f)
+		print(err)
+		# correlation coefficient
+		avg_r = []
+		for i in range(len(vec_s)):
+			r = pearsonr(pred_f,vec_f)
+			print(r)
+			avg_r.append(r)
+		avg_r = sum(avg_r)/len(tmp)
+		return err, avg_r
+
+
+	vec_s, vec_f = data_prep(task, v1=True, normalize_s=True)
+	if task == 'resting':
+		pMat = f_pMat(90) 
+	else:
+		pMat = f_pMat(83) # nz 554689
+
+	if cross_val == 0:
+		if load:
+			B = np.load(fdir+str(b_lam)+'_mrce_B_'+task+'.npy')
+			Omg = np.load(fdir+str(omega_lam)+'_mrce_Omg_'+task+'.npy')
+		else:
+			B, Omg = get_B_omega(vec_s, vec_f, pMat=pMat)
+			np.save(fdir+str(b_lam)+'_mrce_B_'+task+'.npy', B)
+			np.save(fdir+str(omega_lam)+'_mrce_Omg_'+task+'.npy', Omg)
+		print('B min:', B.min(), 'B max:', B.max(), 
+				'B nz entry #: ', np.count_nonzero(B))		
+		print('Omg min:', Omg.min(), 'Omg max:', Omg.max(), 
+				'Omg nz entry #:', np.count_nonzero(Omg))
+
+	else:
+		# k-fold cross_val
+		val_num = len(vec_s) // cross_val
+
+		for i in range(cross_val):
+			print('cross validation, iteration:', i)
+			val_s = vec_s[i * val_num: (i+1) * val_num]
+			train_s = np.concatenate((vec_s[:i * val_num], vec_s[(i+1) * val_num:]))
+			val_f = vec_f[i * val_num: (i+1) * val_num]
+			train_f = np.concatenate((vec_f[:i * val_num], vec_f[(i+1) * val_num:]))
+
+			if load:
+				B = np.load(fdir+str(b_lam)+'_mrce_B_'+task+str(i)+'.npy')
+				Omg = np.load(fdir+str(omega_lam)+'_mrce_Omg_'+task+str(i)+'.npy')
+			else:
+				B, Omg = get_B_omega(train_s, train_f, pMat=pMat)
+				np.save(fdir+str(omega_lam)+'_mrce_Omg_'+task+str(i)+'.npy', Omg)
+				np.save(fdir+str(b_lam)+'_mrce_B_'+task+str(i)+'.npy', B)
+			print('B min:', B.min(), 'B max:', B.max(), 
+					'B nz entry #: ', np.count_nonzero(B))		
+			print('Omg min:', Omg.min(), 'Omg max:', Omg.max(), 
+					'Omg nz entry #:', np.count_nonzero(Omg))
+
 
 """Other packaged methods"""
 '''Using sgcrf package to solve the problem'''
@@ -400,7 +512,9 @@ def direct_reg(task, alpha, split=False):
 
 if __name__ == '__main__':
 	task = sys.argv[1]
-	lam = float(sys.argv[2])
+	# lam = float(sys.argv[2])
+	b_lam = float(sys.argv[2])
+	omega_lam = float(sys.argv[3])
 
 	'''CONCORD'''
 	# f_only(task,lam=0.1)
@@ -420,4 +534,4 @@ if __name__ == '__main__':
 	# direct_reg(task, lam, split=True) #lam being alpha for individual regression
 
 	'''mrce'''
-	mrce_sf(task, lam)
+	mrce_sf(task, b_lam=b_lam, omega_lam=omega_lam)
