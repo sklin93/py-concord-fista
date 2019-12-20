@@ -8,6 +8,6 @@ python cscc_merge.py \
 --cscc_max_itr 25 \
 --cscc_step_type_out 1 --cscc_const_ss_out 0.02 \
 --cscc_tau 1 \
---cscc_gamma 5 \
+--cscc_gamma 9.5 \
 # --no_constraints 
 # --inner_cvx_solver \
