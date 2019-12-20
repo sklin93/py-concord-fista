@@ -61,11 +61,13 @@ class mrce(object):
         # compute S = X'X
         t = time.time()
         self.S = np.matmul(self.X.transpose(), self.X)
-        print("MRCE: S computed in {:.2e} s".format(time.time()-t))
+        if self.verbose: 
+            print("MRCE: S computed in {:.2e} s".format(time.time()-t))
         # compute H = X'Y*Omega
         t = time.time()
         temp = np.matmul(self.X.transpose(), self.Y)
-        print("MRCE: H_0 computed in {:.2e} s".format(time.time()-t))
+        if self.verbose: 
+            print("MRCE: H_0 computed in {:.2e} s".format(time.time()-t))
 
         # compute ridge estimate of B
         self.B_ridge = self.ridge_estimate()
@@ -87,7 +89,8 @@ class mrce(object):
 
         t = time.time()
         self.H = np.matmul(temp, self.Omg)
-        print("MRCE: H computed in {:.2e} s".format(time.time()-t))
+        if self.verbose: 
+            print("MRCE: H computed in {:.2e} s".format(time.time()-t))
         
         if u_cache:
             self.SOmg = np.empty([self.p, self.q])
