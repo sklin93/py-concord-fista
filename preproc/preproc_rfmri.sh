@@ -23,7 +23,8 @@ fMRI_TASK="$2" # fMRI_TASK="REST1"
 ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
 
 # phase encoding options
-declare -a PHASE_ENCODING=("LR" "RL")
+# declare -a PHASE_ENCODING=("LR" "RL")
+declare -a PHASE_ENCODING=("RL")
 
 # make shell scripts runnable under current directory
 chmod +x *.sh
