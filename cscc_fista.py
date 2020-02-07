@@ -1,7 +1,7 @@
 import csv
 import numpy as np
 import cvxpy as cvx
-import sys, os, pickle, argparse
+import sys, os, pickle, argparse, time
 
 from math import sqrt
 from pprint import pprint
@@ -211,11 +211,13 @@ class cscc_fista(object):
         if self.verbose_inn:
             print("- - - solving inner problem with CVXPY - - - ")
 
+        t = time.time()
         obj = cvx.Minimize(loss)
         constraints = [-1 <= B, B <= 1]
-
         prob = cvx.Problem(obj, constraints)
         prob.solve(verbose=False)
+        print("- - - cvx finished in {:.3f} s - - -".format(time.time()-t))
+
         # print("Is this problem DGP?", prob.is_dgp())
 
         if self.verbose_inn:
@@ -226,7 +228,7 @@ class cscc_fista(object):
             print("solution optimal B_x: "); print(self.A_X/(self.p_gamma * self.p_lambda))
             W = self.A_X - self.p_gamma * self.p_lambda * B.value
             print("solution W:"); print(W)
-            input("... press any key to continue ...")
+            # input("... press any key to continue ...")
             
         return B.value
 
