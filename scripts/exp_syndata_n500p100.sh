@@ -12,7 +12,7 @@ python cscc_merge.py \
 --mrce_max_itr 100 \
 --mrce_TOL_type 1 --mrce_TOL 1e-3 \
 --mrce_step_type 2 --mrce_const_ss 0.05 \
---cscc_outer_verbos
+--cscc_outer_verbos --cscc_inner_verbose
 # --cscc_pMat
 # --no_constraints  --cscc_outer_verbose  --mrce_verbose \
 # --cscc_plot_in_loop --mrce_verbose_plots
