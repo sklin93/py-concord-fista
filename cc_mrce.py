@@ -27,7 +27,8 @@ class mrce(object):
     """ MRCE: multivariate regression with covariance estimation """
 
     def __init__(self, X, Y, Omg, lamb2, TOL_ep, \
-        max_itr=100, B_init=np.array([]), verbose=True, verbose_plots=False, \
+        max_itr=100, B_init=np.array([]), B_ori=np.array([]), \
+        verbose=True, verbose_plots=False, TOL_type=1, \
         u_cache=False, matrix_form=True, stochastic=False, \
         step_type=3, c=0.9, alpha=1, p_tau=0.7, const_ss=0.2):
 
@@ -54,6 +55,7 @@ class mrce(object):
         self.p_tau     = p_tau
         self.step_type = step_type
         self.const_ss  = const_ss
+        self.TOL_type  = TOL_type
 
         # initialization
         if self.verbose: 
@@ -71,6 +73,7 @@ class mrce(object):
 
         # compute ridge estimate of B
         self.B_ridge = self.ridge_estimate()
+        self.B_ori   = B_ori
 
         # set initial value of B
         if B_init.size == 0:
@@ -170,6 +173,7 @@ class mrce(object):
         # Omega initial likelihood
         B  = self.B_init.copy()
         h  = self.likelihood_B_wonorm(B)
+        f  = h + self.lamb2 * np.abs(B).sum()
 
         # Theta & initial gradient
         Th    = self.B_init.copy()
@@ -192,11 +196,12 @@ class mrce(object):
         itr  = 0
         h_n  = 0.0
         Q_n  = 0.0
+        f_n  = f
         while loop:
             itr_back = 0
             tau      = tau_n
             if self.verbose: 
-                print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
+                print("\n = = = MRCE: B iteration "+str(itr)+" = = = ")
  
             # constant step length
             if self.step_type == 3:
@@ -211,7 +216,7 @@ class mrce(object):
                     if itr_back != 0:
                         tau = tau * self.c
                     if self.verbose: 
-                        print("\n = = = line-search iteration "+str(itr_back)+" = = = ")
+                        print("- - - line-search iteration "+str(itr_back)+" - - - ")
                     G_n = (2/self.n) * (np.matmul(self.S, np.matmul(Th, self.Omg)) - XYOmg)
                     A_n = Th - tau * G_n
                     B_n = np.sign(A_n) * np.maximum(abs(A_n)-tau*Lambda, 0.0)
@@ -244,7 +249,7 @@ class mrce(object):
             f_n = h_n + self.lamb2 * np.abs(B_n).sum()
             if self.verbose:
                 print("MRCE: check gradient correctness {:.3e}".format(subg_diff))
-                print("\n- - - problem solution UPDATED - - -\n" + \
+                print("- - - problem solution UPDATED - - -\n" + \
                     " 1st term (loss): "+"{:.3e}".format(h_n) + \
                     "\n 2nd term (regularizer): "+"{:.3e}".format(f_n-h_n) + \
                     "\n objective: "+"{:.3e}".format(f_n))
@@ -276,29 +281,35 @@ class mrce(object):
                 tau_n = (Step * Step).sum() / (Step * (G_n - G)).sum()
                 tau_n = tau if tau_n < 0.0 else tau_n
 
+            # compute stopping criterion
+            if self.TOL_type == 0:
+                tmp       = G_n + np.sign(B_n) * Lambda # sign(Omg_n) or sign(Th)
+                subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
+                subg[B_n != 0] = tmp[B_n != 0]
+                # cur_err   = np.linalg.norm(G_n)
+                cur_err   = np.linalg.norm(subg) / np.linalg.norm(B_n)
+                # cur_err   = np.linalg.norm(B_n + np.sign(B_n) * Lambda) / np.linalg.norm(B_n)
+                if self.verbose_plots:
+                    plot_data['subg'].append(cur_err)
+                if self.verbose:
+                    print("subg norm:{:.3e}".format(np.linalg.norm(subg)))
+            elif self.TOL_type == 1:
+                # print("f_n:{0:.3e}, f:{1:.3e}".format(f_n,f))
+                cur_err   = np.abs((f_n - f) / f)
+
+            if self.verbose: 
+                print("error: "+"{:.3e}".format(cur_err)+\
+                    "\nh function value:"+"{:.3e}".format(h_n))
+                print('nonzero entry count of B: ', np.count_nonzero(B_n))
+                if np.isnan(h_n): sys.exit()
+            
             # update for next iteration
             alpha = alpha_n
             B     = B_n
             h     = h_n
+            f     = f_n
             G     = G_n
             itr  += 1
-
-            # compute stopping criterion
-            tmp       = G_n + np.sign(B_n) * Lambda # sign(Omg_n) or sign(Th)
-            subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
-            subg[B_n != 0] = tmp[B_n != 0]
-            # cur_err   = np.linalg.norm(G_n)
-            cur_err   = np.linalg.norm(subg) / np.linalg.norm(B_n)
-            # cur_err   = np.linalg.norm(B_n + np.sign(B_n) * Lambda) / np.linalg.norm(B_n)
-            if self.verbose_plots:
-                plot_data['subg'].append(cur_err)
-
-            if self.verbose: 
-                print("error: "+"{:.3e}".format(cur_err)+\
-                    "\nsubg norm:"+"{:.3e}".format(np.linalg.norm(subg))+\
-                    "\nh function value:"+"{:.3e}".format(h))
-                print('nonzero entry count of B: ', np.count_nonzero(B_n))
-                if np.isnan(h): sys.exit()
 
             if self.verbose_plots:
                 plt.figure(1,figsize=(12, 7))
@@ -327,9 +338,10 @@ class mrce(object):
                 plt.plot(plot_data['x'], plot_data['tau'], 'r.--')
                 plt.show(block=False); plt.pause(0.01)
 
-                plt.subplot(235); plt.title('norm of subgradient')
-                plt.plot(plot_data['x'], plot_data['subg'], 'k.--')
-                plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
+                if self.TOL_type == 0:
+                    plt.subplot(235); plt.title('norm of subgradient')
+                    plt.plot(plot_data['x'], plot_data['subg'], 'k.--')
+                    plt.yscale('log'); plt.show(block=False); plt.pause(0.01)
 
                 plt.subplot(236); plt.title('check correctness of gradient')
                 plt.plot(plot_data['x'], plot_data['subg_diff'], 'b.--')
@@ -345,8 +357,15 @@ class mrce(object):
             loop = itr < self.max_itr and cur_err > self.TOL_ep
          # end of (while loop)
         
+        print("MRCE: B estimate ends at iteration {0:d}".format(itr-1))
+
         if self.verbose_plots:
             plt.show(block=True)
+        # if self.verbose:
+        #     print("Inferred B:")
+        #     print(B_n)
+        #     print("Groundtruth B:")
+        #     print(self.B_ori)
         return B_n
 
 
@@ -521,18 +540,21 @@ class mrce_syn(object):
             #       Make sure L is less sparse then what you want your final matrix to be.
             Spr = sparse.random(self.q, self.q, density=self.pct_nnz).A
             Spr[Spr != 0] = Spr[Spr != 0] * (1 - self.base_nnz) + self.base_nnz
-            print("nonzeros of triu-Spr: " + str(np.count_nonzero(Spr)))
+            print("... nonzeros of triu-Spr: " + str(np.count_nonzero(Spr)))
             Chol = np.tril(Spr)
             np.fill_diagonal(Chol, 1)
             self.Omg  = Chol @ Chol.transpose()
-            print("nonzeros of triu-Omg: " + str((np.count_nonzero(self.Omg)-self.q)/2.0))
+            print("... nonzeros of triu-Omg: " + str((np.count_nonzero(self.Omg)-self.q)/2.0))
             self.Omg = self.Omg / np.max(self.Omg)
             np.fill_diagonal(self.Omg, 1)
-            print("positive definiteness check: " + str(np.all(np.linalg.eigvals(self.Omg) > 0)))
+            print("... positive definiteness check: " + str(np.all(np.linalg.eigvals(self.Omg) > 0)))
             self.Sigma_E = np.linalg.inv(self.Omg)
         
         # generate error matrix E (n x q)
+        # option 1: generate multivariate gaussian noise
         self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
+        # option 2: generate t-distributed noise
+
 
         # generate B
         W = np.random.normal(0, 1, (self.p, self.q))
@@ -541,6 +563,7 @@ class mrce_syn(object):
         Q = np.zeros((self.p, self.q))
         Q[np.nonzero(Q_idx)[0],:] = 1
         self.B = W * K * Q  # element-wise product
+        print("... ground-truth B contains {0:d} non-zeros ...".format(np.count_nonzero(self.B)))
 
         # generate Y
         self.Y = np.matmul(self.X, self.B) + self.E
@@ -549,8 +572,7 @@ class mrce_syn(object):
         self.pMat = self.Omg.copy()
         self.pMat[self.pMat != 0] = 1
         num_nz = np.count_nonzero(self.pMat)
-        print("... ground-truth Omg contains {0:d} non-zero entries,"\
-              +" {1:d} off-diag ...".format(num_nz, num_nz-self.q))
+        print("... ground-truth Omg contains {0:d} non-zero entries, {1:d} off-diag ...".format(num_nz, num_nz-self.q))
         
         # add more feasible entries to pMat mask
         if self.pMat_noise != 0:
@@ -608,7 +630,7 @@ def test(args):
         input('...press any key...')
         B = problem.coordinate_solver_B()
     elif args.FISTA:
-        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, max_itr=args.max_itr, step_type=args.step_type, c=0.5, p_tau=args.p_tau, alpha=1, const_ss=args.const_ss, B_init=B0, verbose=args.verbose, verbose_plots=args.verbose_plots)
+        problem = mrce(X=data.X, Y=data.Y, Omg=Omg_ori, lamb2=args.p_lambda, TOL_ep=0.05, max_itr=args.max_itr, step_type=args.step_type, c=0.8, p_tau=args.p_tau, alpha=1, const_ss=args.const_ss, B_init=B0, verbose=args.verbose, verbose_plots=args.verbose_plots)
         print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
         input('...press any key...')
         B = problem.fista_solver_B()

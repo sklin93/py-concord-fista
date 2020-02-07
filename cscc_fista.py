@@ -9,20 +9,27 @@ from scipy import sparse
 from scipy.stats import ortho_group
 from scipy.linalg import norm, inv
 
+import warnings
+import matplotlib.cbook
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 
 
 class cscc_fista(object):
     """ Convex set constrained CONCORD with a two-stage FISTA solver """
 
-    def __init__(self, D, num_var, sample_cov=False, pMat=None, 
-        p_gamma=1.0, p_lambda=1.0, verbose=True, MAX_ITR=300, TOL=1e-5, 
-        p_tau=1, c_outer=0.5, alpha_out=1.0, step_type_out=1, const_ss_out=0.1,
-        verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, p_kappa=0.5, 
-        c_inner=0.5, alpha_inn=1.0, step_type_inn=3, verbose_inn_details=False,
-        plot_in_loop=True, no_constraints=False, inner_cvx_solver=False,
-        record=True, record_label="default", Omg_ori=np.array([])):
+    def __init__(self, D, num_var, p_lambda=1.0, 
+        sample_cov=False,  pMat=None,
+        verbose=True,      MAX_ITR=300,     TOL=1e-5,      TOL_type=0,
+        step_type_out=1,   const_ss_out=0.1,
+        p_gamma=1.0,       p_tau=1,         c_outer=0.5,   alpha_out=1.0, 
+        verbose_inn=False, MAX_ITR_inn=100, TOL_inn=1e-7, 
+        step_type_inn=1,   const_ss_inn=0.1, 
+        p_kappa=0.5,       c_inner=0.5,     alpha_inn=1.0, 
+        verbose_inn_details=False,          plot_in_loop=True, 
+        no_constraints=False,               inner_cvx_solver=False, 
+        record=False, record_label="default", Omg_ori=np.array([])):
 
         super(cscc_fista, self).__init__()
         self.record         = record
@@ -42,6 +49,7 @@ class cscc_fista(object):
         self.verbose     = verbose
         self.MAX_ITR     = MAX_ITR
         self.TOL         = TOL
+        self.TOL_type    = TOL_type
         self.p_tau       = p_tau
         self.c_outer     = c_outer
         self.alpha_out   = alpha_out
@@ -55,11 +63,14 @@ class cscc_fista(object):
         self.p_kappa     = p_kappa
         self.c_inner     = c_inner
         self.alpha_inn   = alpha_inn
-        self.step_type_inn  = step_type_inn
+        self.step_type_inn = step_type_inn
+        self.const_ss_inn = const_ss_inn
         self.verbose_inn_details = verbose_inn_details
 
         # solution initialization
         # make sure initial B_init has all zero diagonals
+        if self.verbose: 
+            print("\n\n\n = = = CSCC Omega-step Initialization = = = ")
         self.Omg_init    = np.identity(num_var) if sample_cov else self.get_sample_cov(D)
         self.B_init      = np.zeros(self.Omg_init.shape)
         self.Omg_ori     = Omg_ori
@@ -132,8 +143,8 @@ class cscc_fista(object):
         self.A   = Th - tau * G
         self.A_X = self.A.copy()
         np.fill_diagonal(self.A_X, 0)
-        if self.verbose:
-            print("\nnon-zeros in (A): {0:d}".format(np.count_nonzero(self.A)))
+        # if self.verbose: 
+            # print("\nnon-zeros in (A): {0:d}".format(np.count_nonzero(self.A)))
 
         if not self.no_constraints:
             # Use inner stage to compute current optimal B.
@@ -143,6 +154,7 @@ class cscc_fista(object):
                 B = self.solver_linfty_cvx()
             else:
                 B = self.solver_linfty()
+                # B = self.solver_linfty_cvx()                
             # else:
             #     B = self.solver_linfty_cvx(); np.fill_diagonal(B, 0)
             #     print('B cvx:'); pprint(B)
@@ -156,21 +168,21 @@ class cscc_fista(object):
             
             #     np.fill_diagonal(B, 0)
             #     print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
-            #     input("... press any key to continue ..")
+            #     input("... press any key to c--TOL_typeontinue ..")
 
             np.fill_diagonal(B, 0)
-            if self.verbose:
-                print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
+            # if self.verbose:
+            #     print("non-zeros in (B): {0:d}".format(np.count_nonzero(B)))
 
             # proximal operator of convex set constraint
             # pMat(i,j) = 0 if (e_i, e_j) is prohibited in the solution
             W   = self.A_X - self.p_gamma * self.p_lambda * B
-            if self.verbose:
-                print("non-zeros in (A_x - gamma * lambda * B): {0:d}".format(np.count_nonzero(W)))
+            # if self.verbose:
+            #     print("non-zeros in (A_x - gamma * lambda * B): {0:d}".format(np.count_nonzero(W)))
             # add diagonal entries from A
             Omg = W * self.pMat + np.diag(np.diag(self.A))
-            if self.verbose:
-                print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
+            # if self.verbose:
+            #     print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
         
         else:
             print("~ ~ ~ No constraint is applied.")
@@ -197,7 +209,7 @@ class cscc_fista(object):
                     loss += cvx.norm(A_x[i,j]-self.p_gamma*self.p_lambda*B[i,j]) ** 2
 
         if self.verbose_inn:
-            print("\n- - - solving inner problem with CVXPY - - - ")
+            print("- - - solving inner problem with CVXPY - - - ")
 
         obj = cvx.Minimize(loss)
         constraints = [-1 <= B, B <= 1]
@@ -207,11 +219,15 @@ class cscc_fista(object):
         # print("Is this problem DGP?", prob.is_dgp())
 
         if self.verbose_inn:
-            print("\n- - - inner problem solved with CVXPY - - - ")
+            # print("- - - inner problem solved with CVXPY - - - ")
             # print("status:", prob.status)
-            print("optimal value:", prob.value)
+            print("optimal value of g:", prob.value)
             print("solution B_x: "); print(B.value)
-
+            print("solution optimal B_x: "); print(self.A_X/(self.p_gamma * self.p_lambda))
+            W = self.A_X - self.p_gamma * self.p_lambda * B.value
+            print("solution W:"); print(W)
+            input("... press any key to continue ...")
+            
         return B.value
 
     def update_linfty(self, Th_, G_, kappa):
@@ -223,11 +239,11 @@ class cscc_fista(object):
         A_ = Th_ - kappa * G_
         if self.verbose_inn_details:
             print("inner stage [B_X before proximal operation]")
-            pprint(A_)
+            print(A_)
         B  = np.sign(A_) * np.minimum(abs(A_), np.ones(A_.shape))
         if self.verbose_inn_details:
             print("inner stage [B_X after proximal operation]")
-            pprint(B)
+            print(B)
         return B
 
     def solver_convset(self):
@@ -243,6 +259,7 @@ class cscc_fista(object):
         Omg  = self.Omg_init.copy()
         SOmg = self.S @ Omg
         h    = self.likelihood_convset(Omg, SOmg)
+        f    = h + np.abs(Omg).sum() * self.p_lambda
 
         # Theta & initial gradient
         Th   = self.Omg_init.copy()
@@ -289,14 +306,14 @@ class cscc_fista(object):
         # looping for optimization steps
         loop  = True
         itr   = itr_back = iter_diag = 0
-        h_n   = Q_n      = f         = 0.0
+        h_n   = 0.0
         while loop:
             itr_diag = 0
             itr_back = 0
             tau = tau_n
 
             if self.verbose: 
-                print("\n\n\n\n = = = iteration "+str(itr)+" = = = ")
+                print("\n= = = CSCC: Omg iteration "+str(itr)+" = = = ")
 
             # constant step length
             if self.step_type_out == 3:
@@ -306,13 +323,14 @@ class cscc_fista(object):
                 # print("Omega_n="); print(Omg_n)
                 SOmg_n = self.S @ Omg_n
                 h_n    = self.likelihood_convset(Omg_n, SOmg_n)
+                f_n    = h_n + (abs(Omg_n)).sum() * self.p_lambda
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
                     if itr_diag !=0 or itr_back != 0:
                         tau = tau * self.c_outer
-                    if self.verbose: 
-                        print("\n = = = line-search itr_back:{0:d}, itr_diag:{1:d}, tau: {2:.2e} = = = ".format(itr_back, itr_diag, tau))
+                    # if self.verbose: 
+                    #     print("\n = = = line-search itr_back:{0:d}, itr_diag:{1:d}, tau: {2:.2e} = = = ".format(itr_back, itr_diag, tau))
 
                     Omg_n  = self.update_convset(Th, G, tau)
                     Omg_x  = Omg_n.copy()
@@ -333,6 +351,7 @@ class cscc_fista(object):
                     else:
                         break
                 # end of (while True)
+                f_n  = h_n + (abs(Omg_n)).sum() * self.p_lambda
             # end of else
             
             if self.plot_in_loop:
@@ -360,16 +379,8 @@ class cscc_fista(object):
                 # taun = (Step.transpose()@Step).trace() \
                 #              / (Step.transpose()@(Gn-G)).trace()
                 # using *.sum() is much faster
-
-            # update for next opt iteration
-            alpha   = alpha_n
-            Omg     = Omg_n
-            h       = h_n
-            G       = G_n
-            itr     += 1
-
-            # won't be used, just for printing
-            # f       = h + (abs(Omg_n)).sum()
+            
+            
 
             # compute subgradient error:
             # 1. As Omg_n has been located in the constrained convex set, it is
@@ -378,30 +389,46 @@ class cscc_fista(object):
             # momentum position Theta_n, except the case that Omg_n(i,j) = 0
             # which is calculated with l1 subgradient definition at zero.
             # 3. Why does we use the sign of Omg_n rather than Th? """
-            tmp       = G_n + np.sign(Omg_n) * Lambda # sign(Omg_n) or sign(Th)
-            subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
-            subg[Omg_n != 0] = tmp[Omg_n != 0]
-            cur_err   = norm(subg) / norm(Omg_n)
+            if self.TOL_type == 0:
+                tmp       = G_n + np.sign(Omg_n) * Lambda # sign(Omg_n) or sign(Th)
+                subg      = np.sign(G_n) * np.maximum(abs(G_n) - Lambda, 0.0)
+                subg[Omg_n != 0] = tmp[Omg_n != 0]
+                cur_err   = norm(subg) / norm(Omg_n)
+                if self.verbose:
+                    print("subg norm: {:.2f}".format(norm(subg)))
+            elif self.TOL_type == 1:
+                if self.verbose:
+                    print("f_n:{0:.3e}, f:{1:.3e}".format(f_n,f))
+                cur_err   = np.abs((f_n - f) / f)
+
+            # update for next opt iteration
+            alpha   = alpha_n
+            Omg     = Omg_n
+            h       = h_n
+            f       = f_n
+            G       = G_n
+            itr     += 1
 
             if self.verbose: 
                 f_n = h_n + self.p_lambda * np.abs(Omg_x).sum()
-                print("\n- - - OUTER problem solution UPDATED - - -\n" + \
+                print("- - - OUTER problem solution UPDATED - - -\n" + \
                     "1st(diag) term: "+"{:.4f}".format(-2 * np.log(Omg_n.diagonal()).sum()) + \
                     " | 2nd(trace) term: "+"{:.4f}".format((Omg_n.transpose()*SOmg_n).sum()) + \
                     " | 3rd(penalty) term: "+"{:.4f}".format(self.p_lambda * np.abs(Omg_x).sum()))
 
                 # print("updated Omega:"); print(Omg)
                 # print("updated Theta:"); print(Th)
-                print("error: "+"{:.2f}".format(cur_err)+\
-                    ", subg norm:"+"{:.2f}".format(norm(subg))+\
+                print("error: "+"{:.3e}".format(cur_err)+\
                     "\nh function value (data fidelity):"+"{:.4f}".format(h_n)+\
                     "\nh function comparable value:"+"{:.4f}".format(h_n/2)+\
                     "\nf function value:"+"{:.4f}".format(f_n))
-                print("Inferred Omega:")
-                print(Omg_n)
-                print('nonzero entry count: ', np.count_nonzero(Omg_n))
+
+                # print("Inferred Omega:"); print(Omg_n)
+                # print('nonzero entry count: ', np.count_nonzero(Omg_n))
+
                 # check Theta matrix symmetric
-                print("symmetric(Th, G_n, Omg_n):{0},{1},{2}".format(self.check_symmetric(Th), self.check_symmetric(G_n), self.check_symmetric(Omg_n)))
+                # print("symmetric(Th, G_n, Omg_n):{0},{1},{2}".format(self.check_symmetric(Th), self.check_symmetric(G_n), self.check_symmetric(Omg_n)))
+
                 # if self.Omg_ori.size != 0:
                 #     self.nz_ori = self.Omg_ori.copy().flatten()
                 #     self.nz_n = Omg_n.copy().flatten()plot_in_loop
@@ -417,16 +444,17 @@ class cscc_fista(object):
 
             label = self.generate_label()
             if self.record:
-                with open('record/cscc-error_'+label+'.csv', 'a') as f:
-                    fwriter = csv.writer(f)
+                with open('record/cscc-error_'+label+'.csv', 'a') as pfile:
+                    fwriter = csv.writer(pfile)
                     fwriter.writerow([itr] + [cur_err])
                 if self.plot_in_loop:
-                    with open('record/cscc-figdata_'+label+'.pkl', 'wb') as f:
-                        pickle.dump(plot_data, f)
+                    with open('record/cscc-figdata_'+label+'.pkl', 'wb') as pfile:
+                        pickle.dump(plot_data, pfile)
                 print('dumping records:'+label)
          # end of (while loop)
         
-        plt.show(block=True)
+        print("CSCC: Omg estimate ends at iteration {0:d}".format(itr-1))
+        plt.show(block=False)
         self.result = Omg_n.copy()
         with open('record/solution_Omg.pkl', 'wb') as pfile:
             pickle.dump(Omg_n, pfile)
@@ -440,10 +468,13 @@ class cscc_fista(object):
 
         kappa_n = self.p_kappa
         alpha   = self.alpha_inn
+        if self.step_type_inn == 3:
+            kappa_n = self.const_ss_inn
+        A_x  = self.A_X.copy()
 
         # B and initial likelihood
         B   = self.B_init.copy()
-        W   = self.A_X - self.p_gamma * self.p_lambda * B
+        W   = A_x - self.p_gamma * self.p_lambda * B
         g   = self.likelihood_linfty(W)
 
         # Theta_ initialization and get initial gradient
@@ -456,6 +487,7 @@ class cscc_fista(object):
         g_n   = R_n      = 0.0
         if self.verbose_inn: 
             print("\n - - - solving inner problem with FISTA - - -")
+            # print("~~ A_X:"); print(A_x)
         while loop:
             itr_back = 0
             kappa    = kappa_n
@@ -465,9 +497,13 @@ class cscc_fista(object):
 
             # constant step length
             if self.step_type_inn == 3:
+                kappa = 2 * (self.p_gamma * self.p_lambda)**2
+                # print("step len {0:.2e}".format(kappa))
                 B_n = self.update_linfty(Th_, G_, kappa)
-                W_n = self.A_X - self.p_gamma * self.p_lambda * B_n
+                W_n = A_x - self.p_gamma * self.p_lambda * B_n
                 g_n = self.likelihood_linfty(W_n)
+                # if self.verbose_inn: 
+                #     print("current value of g: {0:.3e}".format(g_n))
             # looping for adaptive step length as backtacking line search
             else:
                 while True:
@@ -478,8 +514,10 @@ class cscc_fista(object):
                     # check backtracking condition
                     Step = B_n - Th_
                     R_n  = g + (Step*G_).sum() + (1/(2*kappa)) * (norm(Step)**2)
-                    W_n  = self.A_X - self.p_gamma * self.p_lambda * B_n
+                    W_n  = A_x - self.p_gamma * self.p_lambda * B_n
                     g_n  = self.likelihood_linfty(W_n)
+                    # if self.verbose_inn: 
+                    #     print("current value of g: {0:.3e}".format(g_n))
                     if g_n > R_n: # sufficient descent condition
                         itr_back += 1
                     else:
@@ -491,7 +529,7 @@ class cscc_fista(object):
             alpha_n = (1 + sqrt(1 + 4*(alpha**2)))/2
             Th_  = B_n + ((alpha-1)/alpha_n) * (B_n - B)
             # update gradient
-            W_n  = self.A_X - self.p_gamma * self.p_lambda * B_n
+            W_n  = A_x - self.p_gamma * self.p_lambda * B_n
             G_n_ = - 2 * self.p_lambda * self.p_gamma * self.pMat * W_n
             # update tau for next opt iteration
             if self.step_type_inn == 0:
@@ -526,8 +564,15 @@ class cscc_fista(object):
 
         # end of (while loop)
         if self.verbose_inn:
-            print("optimal value of g:", g)
+            print("current value of g:", g)
             print("solution B_x: "); print(B)
+            print('nonzero entry count: ', np.count_nonzero(B))
+            print("solution optimal B_x: "); print(A_x/(self.p_gamma * self.p_lambda))
+            print("W_n:"); print(W_n)
+            print('nonzero entry count: ', np.count_nonzero(W_n))
+            # print("G_n:"); print(G_)
+            # print('nonzero entry count: ', np.count_nonzero(G_))
+            # input("... press any key to continue ...")
 
         return B_n
     # end of solver_convset
@@ -645,8 +690,8 @@ def generate_synthetic(syndata_file, num_var = 7, num_smp = 200, pct_nnz = 0.2, 
     pprint(Omg)
 
     # save generated model and samples
-    with open(syndata_file, 'wb') as p:
-        pickle.dump((Omg, Sig, D, pMat, num_var, num_smp), p)
+    with open(syndata_file, 'wb') as pfile:
+        pickle.dump((Omg, Sig, D, pMat, num_var, num_smp), pfile)
 
     return
 
@@ -655,8 +700,8 @@ def test_synthetic(syndata_file, args):
 
     print("Loading synthetic dataset ... \n")
     record_label=os.path.splitext(os.path.basename(syndata_file))[0]
-    with open(syndata_file, 'rb') as p:
-        (Omg, Sig, D, pMat, num_var, num_smp) = pickle.load(p)
+    with open(syndata_file, 'rb') as pfile:
+        (Omg, Sig, D, pMat, num_var, num_smp) = pickle.load(pfile)
     print("Loaded ... Groundtruth Omega:")
     print(Omg)
 
@@ -677,15 +722,19 @@ def test_synthetic(syndata_file, args):
     
     
     # partial correlation graph estimation
-    problem  = cscc_fista(D, num_var=num_var, pMat=pMat, 
-                    MAX_ITR=args.MAX_ITR,
-                    step_type_out = args.step_type_out, const_ss_out = args.const_ss_out, 
-                    p_gamma=args.p_gamma, p_lambda=args.p_lambda, p_tau=args.p_tau, 
-                    TOL=args.TOL, TOL_inn=args.TOL_inn,
-                    verbose=args.outer_verbose, verbose_inn=args.inner_verbose,
-                    no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
-                    record_label=record_label)
+    problem  = cscc_fista(D, num_var=num_var, #pMat=pMat, # 
+                pMat=np.ones((num_var, num_var)), 
+                MAX_ITR=args.MAX_ITR, TOL=args.TOL, verbose=args.outer_verbose,
+                step_type_out = args.step_type_out, const_ss_out = args.const_ss_out, 
+                p_gamma=args.p_gamma, p_lambda=args.p_lambda, p_tau=args.p_tau, 
+                MAX_ITR_inn=args.MAX_ITR_inn, TOL_inn=args.TOL_inn, p_kappa=args.p_kappa, 
+                verbose_inn=args.inner_verbose, verbose_inn_details=args.verbose_inn_details,
+                step_type_inn = args.step_type_inn, const_ss_inn = args.const_ss_inn,
+                no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
+                record_label=record_label)
     Omg_hat, label  = problem.solver_convset()
+
+    # p_kappa=0.5, c_inner=0.5, alpha_inn=1.0, 
 
     # output results
     print("\n\n= = = Finished = = =\nGroundtruth Omega:")
@@ -717,8 +766,8 @@ def plot_with_records(record_list):
 
     for record_path in record_list:
         print('plotting:' + record_path)
-        with open('record/cscc-figdata_'+record_path+'.pkl', 'rb') as f:
-            plot_data = pickle.load(f)
+        with open('record/cscc-figdata_'+record_path+'.pkl', 'rb') as pfile:
+            plot_data = pickle.load(pfile)
         c = next(color)
         plt.plot(plot_data['x'], plot_data['y'], c=c, marker='o', label=record_path)
         plt.show(block=False)
@@ -731,7 +780,7 @@ def plot_with_records(record_list):
 
 def main(args):
 
-    np.set_printoptions(formatter={'float': '{: 0.4f}'.format})
+    np.set_printoptions(formatter={'float': '{: 0.2f}'.format})
 
     if args.generate_synthetic:
         syndata_file = args.synthetic_dir
@@ -782,8 +831,16 @@ if __name__ == "__main__":
                         help='lambda: penalty parameter for l_1')
     parser.add_argument('--p_tau', type=float, default=0.2,
                         help='tau: step length')
+    parser.add_argument('--p_kappa', type=float, default=0.2,
+                        help='kappa: initial step length in inner loop')
     parser.add_argument('--TOL', type=float, default=1e-3,
                         help='Tolerance in outer loop')
+    parser.add_argument('--TOL_type', type=int, default=0,
+                        help='Convergence criterion type in outer loop')
+    parser.add_argument('--step_type_inn', type=int, default=3,
+                        help='Type of step length setting in inner loop')
+    parser.add_argument('--const_ss_inn', type=float, default=0.1,
+                        help='Constant step length in inner loop')
     parser.add_argument('--TOL_inn', type=float, default=1e-2,
                         help='Tolerance in inner loop')
 
@@ -794,6 +851,9 @@ if __name__ == "__main__":
                         help='Whether to display optimization updates of outer loop')
     parser.add_argument('--plot_past_records', default=False, action='store_true',
                         help='Whether to plot loss with past runs')
+    parser.add_argument('--verbose_inn_details', default=False, action='store_true',
+                        help='Whether to display details of inner loop')
+                        
 
     # Options of algorithm, use to compare with standard setting
     parser.add_argument('--inner_cvx_solver', default=False, action='store_true',
