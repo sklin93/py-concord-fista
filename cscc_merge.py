@@ -3,7 +3,7 @@ from cc_mrce import mrce_syn
 from cscc_fista import cscc_fista
 
 import numpy as np
-import os, pickle, argparse
+import os, pickle, argparse, time
 os.system("mode con cols=100")
 
 
@@ -146,6 +146,7 @@ def cscc_mrce(args):
         pMat = np.ones((data.q, data.q))
 
     if args.run_all:
+        itr     = 0
         loop    = True
         B_hat   = np.zeros((data.p, data.q))
         Omg_hat = np.identity(data.q) # np.zeros((data.q, data.q))
@@ -154,8 +155,10 @@ def cscc_mrce(args):
                             Omg_hat=Omg_hat, B_hat=B_hat, 
                             X_ori=data.X, Y_ori=data.Y)
         while loop:
+            itr += 1
             # (estimate Omega)
             # partial correlation graph estimation
+            t = time.time()
             problem = cscc_fista(D=data.Y-np.matmul(data.X, B_hat), 
                 pMat=pMat, num_var=data.q, 
                 step_type_out = args.cscc_step_type_out, 
@@ -172,7 +175,7 @@ def cscc_mrce(args):
             # force threshold
             Omg_hat[np.abs(Omg_hat)<1e-3] = 0
             if args.verbose:
-                print("= = = Omg-estimate Finished = = =")
+                print("= = = Omg-estimate finished in {:.3f} s = = =".format(time.time()-t))
                 # print("Groundtruth Omega:"); print(data.Omg)
                 print('Omg_ori nonzeros: ', np.count_nonzero(data.Omg))
                 # print("Inferred Omega:"); print(Omg_hat)
@@ -183,11 +186,12 @@ def cscc_mrce(args):
                 FPR, TPR = stat_obj.get_fpr(data.Omg, Omg_hat)
                 print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
 
-                input('...press any key...')
+                # input('...press any key...')
                 print("\n\n")
             
             # (estimate B) 
             # regression coefficient estimation
+            t = time.time()
             problem = mrce(Omg=np.linalg.matrix_power(Omg_hat,2), 
                         lamb2=args.mrce_lambda, X=data.X, Y=data.Y,
                         step_type=args.mrce_step_type, const_ss=args.mrce_const_ss, 
@@ -200,7 +204,7 @@ def cscc_mrce(args):
             stat_obj.get_solution(B_hat)
             stat_obj.get_output()
             if args.verbose:
-                print("= = = B-estimate Finished = = =")
+                print("= = = B-estimate finished in {:.3f} s = = =".format(time.time()-t))
                 # print("Groundtruth B:"); print(data.B)
                 print('B_ori nonzeros: ', np.count_nonzero(data.B))
                 # print("Inferred B:"); print(B_hat)
@@ -215,8 +219,10 @@ def cscc_mrce(args):
                 print('MSE: {0:.3f}, MPE: {1:.3f}, MAPE: {2:.3f}'.format(
                             stat_obj.get_mse(), stat_obj.get_mpe(), stat_obj.get_mape()))
 
-                input('...press any key...')      
+                # input('...press any key...')      
                 print("\n\n")
+
+            loop = itr <= args.max_itr
                 
 
     return 
@@ -243,6 +249,8 @@ if __name__ == "__main__":
                         help='Whether to run MRCE to estimate B')
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Whether to display details of very-outer loop')
+    parser.add_argument('--max_itr', type=int, default=20,
+                        help='Maximum iteration of Omg-B loop')
 
     # Pick or generate a dataset
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
