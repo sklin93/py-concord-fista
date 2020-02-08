@@ -112,7 +112,7 @@ def cscc_mrce(args):
         print('nonzero entry count: ', np.count_nonzero(data.Omg))
         print("Given pMat:"); print(data.pMat)
         print('nonzero entry count: ', np.count_nonzero(data.pMat))
-        input('... press any key to continue ...')
+        # input('... press any key to continue ...')
 
     # (estimate Omega)
     # partial correlation graph estimation
@@ -125,7 +125,7 @@ def cscc_mrce(args):
                     step_type_out = args.cscc_step_type_out, 
                     const_ss_out = args.cscc_const_ss_out, c_outer=args.cscc_c_out,
                     p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
-                    MAX_ITR=args.cscc_max_itr, 
+                    MAX_ITR=args.cscc_max_itr, MAX_ITR_inn=args.cscc_max_itr_inn,
                     TOL=args.cscc_TOL, TOL_type=args.cscc_TOL_type,
                     TOL_inn=args.cscc_TOL_inn, c_inner=args.cscc_c_inn,
                     verbose=args.cscc_outer_verbose, 
@@ -166,6 +166,7 @@ def cscc_mrce(args):
                 p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
                 MAX_ITR=args.cscc_max_itr, 
                 TOL=args.cscc_TOL, TOL_type=args.cscc_TOL_type,
+                MAX_ITR_inn=args.cscc_max_itr_inn,
                 TOL_inn=args.cscc_TOL_inn, c_inner=args.cscc_c_inn,
                 verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
                 plot_in_loop=args.cscc_plot_in_loop,
@@ -175,7 +176,7 @@ def cscc_mrce(args):
             # force threshold
             Omg_hat[np.abs(Omg_hat)<1e-3] = 0
             if args.verbose:
-                print("= = = Omg-estimate finished in {:.3f} s = = =".format(time.time()-t))
+                print("= = = Omg-estimate itr-{0:d} finished in {1:.3f} s = = =".format(itr, time.time()-t))
                 # print("Groundtruth Omega:"); print(data.Omg)
                 print('Omg_ori nonzeros: ', np.count_nonzero(data.Omg))
                 # print("Inferred Omega:"); print(Omg_hat)
@@ -204,7 +205,7 @@ def cscc_mrce(args):
             stat_obj.get_solution(B_hat)
             stat_obj.get_output()
             if args.verbose:
-                print("= = = B-estimate finished in {:.3f} s = = =".format(time.time()-t))
+                print("= = = B-estimate itr-{0:d} finished in {1:.3f} s = = =".format(itr, time.time()-t))
                 # print("Groundtruth B:"); print(data.B)
                 print('B_ori nonzeros: ', np.count_nonzero(data.B))
                 # print("Inferred B:"); print(B_hat)

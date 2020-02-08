@@ -210,17 +210,16 @@ class cscc_fista(object):
 
         if self.verbose_inn:
             print("- - - solving inner problem with CVXPY - - - ")
-
-        t = time.time()
+            t = time.time()
+        
         obj = cvx.Minimize(loss)
         constraints = [-1 <= B, B <= 1]
         prob = cvx.Problem(obj, constraints)
         prob.solve(verbose=False)
-        print("- - - cvx finished in {:.3f} s - - -".format(time.time()-t))
-
         # print("Is this problem DGP?", prob.is_dgp())
 
         if self.verbose_inn:
+            print("- - - cvx finished in {:.3f} s - - -".format(time.time()-t))
             # print("- - - inner problem solved with CVXPY - - - ")
             # print("status:", prob.status)
             print("optimal value of g:", prob.value)
