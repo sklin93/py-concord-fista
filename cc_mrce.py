@@ -23,6 +23,34 @@ def plot_grad_hist(G, G_wnorm, prefix='_0'):
     return 
 
 
+def multivariate_t_rvs(m, S, df=np.inf, n=1):
+    '''generate random variables of multivariate t distribution
+    Parameters
+    ----------
+    m : array_like
+        mean of random variable, length determines dimension of random variable
+    S : array_like
+        square array of covariance  matrix
+    df : int or float
+        degrees of freedom
+    n : int
+        number of observations, return random array will be (n, len(m))
+    Returns
+    -------
+    rvs : ndarray, (n, len(m))
+        each row is an independent draw of a multivariate t distributed
+        random variable
+    '''
+    m = np.asarray(m)
+    d = len(m)
+    if df == np.inf:
+        x = 1.
+    else:
+        x = np.random.chisquare(df, n)/df
+    z = np.random.multivariate_normal(np.zeros(d),S,(n,))
+    return m + z/np.sqrt(x)[:,None]   # same output format as random.multivariate_normal
+    
+
 class mrce(object):
     """ MRCE: multivariate regression with covariance estimation """
 
@@ -461,7 +489,7 @@ class mrce_syn(object):
 
     def __init__(self, p = 100, q = 100, n = 50, phi = 0.7, \
         err_type = 0, rho = 0.5, Hurst = 0.9, success_prob_s1 = 0.2, success_prob_s2 = 0.2, \
-        pct_nnz = 0.2, base_nnz = 0.7, pMat_noise = 0, distr_type = 1):
+        pct_nnz = 0.2, base_nnz = 0.7, pMat_noise = 0, distr_type = 1, df = 2):
 
         self.p = p
         self.n = n
@@ -487,22 +515,33 @@ class mrce_syn(object):
         self.success_prob_s1 = success_prob_s1
         self.success_prob_s2 = success_prob_s2
 
-        self.X = np.empty([self.n, self.p])
-        self.Y = np.empty([self.n, self.q])
-        self.E = np.empty([self.n, self.q])
-        self.B = np.empty([self.p, self.q])
-        self.Sigma_X = np.empty([self.p, self.p])
-        self.Sigma_E = np.empty([self.q, self.q])
-
         # - - - Parameters for err_type = 2
         self.pct_nnz  = pct_nnz   # percentage of non-zero entries in L matrix
         self.base_nnz = base_nnz  # base value of non-zero entries in L matrix
 
-        # - - - noise distribution given generated partial correlation matrix
-        self.distr_type = distr_type
-
         # - - - noise ratio of noise in pMat
         self.pMat_noise = pMat_noise
+
+        # - - - noise distribution given generated partial correlation matrix
+        self.distr_type = distr_type
+        self.df = df
+        
+        # generated characteristics of data
+        self.B = np.empty([self.p, self.q])
+        self.Sigma_X = np.empty([self.p, self.p])
+        self.Sigma_E = np.empty([self.q, self.q])
+
+        # data for training
+        self.X = np.empty([self.n, self.p])
+        self.Y = np.empty([self.n, self.q])
+        self.E = np.empty([self.n, self.q])
+
+        # data for testing
+        self.X_test = np.empty([self.n, self.p])
+        self.Y_test = np.empty([self.n, self.q])
+        self.E_test = np.empty([self.n, self.q])     
+        
+          
         
         return
 
@@ -514,6 +553,7 @@ class mrce_syn(object):
                 self.Sigma_X[i,j] = np.power(self.phi, np.abs(i-j)) 
         # generate X (n x p)
         self.X = np.random.multivariate_normal(np.zeros(self.p), self.Sigma_X, self.n)
+        self.X_test = np.random.multivariate_normal(np.zeros(self.p), self.Sigma_X, self.n)
 
         # generate Sigma_E (q x q) and Omg (q x q)
         if self.err_type == 0: 
@@ -556,11 +596,11 @@ class mrce_syn(object):
         if self.distr_type == 1:
             # option 1: generate multivariate gaussian noise
             self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
+            self.E_test = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
         elif self.distr_type == 2:
             # option 2: generate t-distributed noise
-            self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
-
-
+            self.E = multivariate_t_rvs(np.zeros(self.q), self.Sigma_E, self.df, self.n)
+            self.E_test = multivariate_t_rvs(np.zeros(self.q), self.Sigma_E, self.df, self.n)
 
         # generate B
         W = np.random.normal(0, 1, (self.p, self.q))
@@ -573,6 +613,7 @@ class mrce_syn(object):
 
         # generate Y
         self.Y = np.matmul(self.X, self.B) + self.E
+        self.Y_test = np.matmul(self.X_test, self.B) + self.E_test
 
         # create non-zero mask
         self.pMat = self.Omg.copy()

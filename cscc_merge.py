@@ -97,7 +97,8 @@ def cscc_mrce(args):
         data = mrce_syn(p = args.p, q = args.q, n = args.n, phi = args.phi, \
                 err_type = args.err_type, rho = args.rho, pMat_noise = args.pMat_noise, \
                 pct_nnz=args.pct_nnz, base_nnz=args.base_nnz, \
-                success_prob_s1=args.success_prob_s1, success_prob_s2=args.success_prob_s2)
+                success_prob_s1=args.success_prob_s1, success_prob_s2=args.success_prob_s2, \
+                distr_type=args.distr_type, df=args.df)
         data.generate()
         with open(args.synthetic_dir, "wb") as pfile:
             pickle.dump(data, pfile) 
@@ -285,6 +286,10 @@ if __name__ == "__main__":
                         help='dataset generation Chol: percentage of non-zero entries in L matrix')
     parser.add_argument('--base_nnz', type=float, default=0.7, 
                         help='dataset generation Chol: base value of non-zero entries in L matrix')
+    parser.add_argument('--distr_type', type=int, default=1, 
+                        help='dataset generation: types of error distribution, 1 for multivariate normal distribution, 2 for multivariate t-distribution')
+    parser.add_argument('--df', type=int, default=2, 
+                        help='dataset generation: degrees of freedom for multivariate t-distribution')
 
     # Parameters of CSCC-Omg estimate
     parser.add_argument('--cscc_max_itr', type=int, default=20,
