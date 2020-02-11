@@ -62,36 +62,37 @@ def plot_edge(omega, r_name, idx, edge_idx):
 	plt.show()
 
 if __name__ == '__main__':
-	fdir = 'fs_results/'
+	fdir = 'fs_results2/'
 	task = sys.argv[1]
 	lam = float(sys.argv[2])
+	omega_lam = float(sys.argv[3])
 
 	if task == 'resting':
 		r_name = info_dict['data']['aal']
 	else:
 		r_name = info_dict['data']['hcp']
-	# load omega
+	# load mapping
 	if task == 'resting' or task[:6] == 'syn_sf':
-		# omega = load_omega(task, mid='_train_', lam=9e-05)
-		B = np.load(fdir+str(lam)+'_mrce_B_'+task+'.npy')
-		omega = B
+		# mapping = load_omega(task, mid='_train_', lam=9e-05)
+		B = np.load(fdir+str(lam)+'_'+str(omega_lam)+'_mrce_B_'+task+str(i)+'.npy')
+		mapping = B.T
 	else:
-		# omega = load_omega(task, mid='_er_train_hcp2_', lam=0.0014)
-		B = np.load(fdir+str(lam)+'_mrce_B_'+task+'.npy')
-		omega = B # just for visualization purpose (tmp, #TODO cleanup)
-	# omega = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
-	# omega = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
-
+		# mapping = load_omega(task, mid='_er_train_hcp2_', lam=0.0014)
+		B = np.load(fdir+str(lam)+'_'+str(omega_lam)+'_mrce_B_'+task+'_common_vis.npy')
+		mapping = B.T
+	# mapping = np.load('fs_results/direct_9e-05.npy')[:3403, 3403:]
+	# mapping = np.load('fs_results/9e-05_train_syn_sf_sf.npy')[:, 3403:]
+	q, p = mapping.shape
 	# visulize omega_fs nz entries
 	plt.figure()
-	omega_vis = omega.copy()
-	omega_vis[omega_vis!=0]=1
+	mapping_vis = mapping.copy().T # add transpose if visualizing mrce B
+	mapping_vis[mapping_vis!=0]=1
 
 	for _ in range(3):
-		omega_vis = binary_dilation(omega_vis)
+		mapping_vis = binary_dilation(mapping_vis)
 	 
-	# plt.imshow(omega_vis, cmap='Blues')
-	plt.imshow(omega_vis)
+	plt.imshow(mapping_vis, cmap='Blues')
+	# plt.imshow(mapping_vis)
 	plt.axis('off')
 	plt.savefig(fdir+'fs_'+task+'.png', bbox_inches = 'tight', pad_inches = 0)
 	plt.show()
@@ -112,9 +113,9 @@ if __name__ == '__main__':
 	# relative info
 	# 1: which structral edges are the top important k? [per col]
 	s_topk = 10
-	omega_vis = omega.copy()
-	omega_vis[omega_vis!=0]=1
-	s_sum = np.sum(omega_vis, axis=0)
+	mapping_vis = mapping.copy()
+	mapping_vis[mapping_vis!=0]=1
+	s_sum = np.sum(mapping_vis, axis=0)
 
 	'''
 	# plot nz entry number distribution
@@ -130,15 +131,16 @@ if __name__ == '__main__':
 	pl_fit.lognormal.plot_cdf(ax=fig, color='r', linestyle='--')
 	plt.show()
 	'''
-	import ipdb; ipdb.set_trace()
+	# import ipdb; ipdb.set_trace()
 
 	print(s_sum.max(), s_sum.mean(), s_sum.min())
 	sorted_idx_s = np.argsort(s_sum)[::-1]
+	print('Top correlated edge names (in S) and their correlated function number:')
 	# for i in range(s_topk):
 	for i in range(np.count_nonzero(s_sum)):
-		print('\ncorrelated function number:', s_sum[sorted_idx_s[i]])
 		idx = idx_dict[sorted_idx_s[i]]
-		print(r_name[idx[0]], r_name[idx[1]])
+		print(r_name[idx[0]], r_name[idx[1]], ':\t',  
+			int(s_sum[sorted_idx_s[i]]), '\t', round(s_sum[sorted_idx_s[i]] / p, 5))
 
 	# 2: does these edges exists for every subject in the original structral data?
 	vec, _ = data_prep(task)
@@ -157,13 +159,13 @@ if __name__ == '__main__':
 		idx = idx_dict[sorted_idx_f[i]]
 		print('\ncorrelated structral edge number:', f_sum[sorted_idx_f[i]])
 		print(sorted_idx_f[i], r_name[idx[0]], r_name[idx[1]])
-		plot_edge(omega, r_name, idx_dict, sorted_idx_f[i])
+		plot_edge(mapping, r_name, idx_dict, sorted_idx_f[i])
 	import ipdb; ipdb.set_trace()
 	# 4: check connected component for all function edges
 	cc = 0
 	ctr = 0
-	for i in range(omega.shape[0]):
-		G = get_graph(omega, len(r_name), idx_dict, i)
+	for i in range(mapping.shape[0]):
+		G = get_graph(mapping, len(r_name), idx_dict, i)
 		if f_sum[i] > 1:
 			print('nz:', f_sum[i], 'cc:', nx.number_connected_components(G))
 			cc += nx.number_connected_components(G)

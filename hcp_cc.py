@@ -408,8 +408,23 @@ def direct_reg(task, alpha, split=False):
 
 if __name__ == '__main__':
 	task = sys.argv[1]
-	lam = float(sys.argv[2])
-
+	# lam = float(sys.argv[2])val_num = len(vec_s) // cross_val
+	'''data conversion for cggm'''
+	vec_s, vec_f = data_prep(task, v1=True, normalize_s=True)
+	cross_val = 10
+	val_num = len(vec_s) // cross_val
+	cggm_dir = 'mega-cggm/demo/data/'
+	for i in range(cross_val):
+		print('cross validation, iteration:', i)
+		val_s = vec_s[i * val_num: (i+1) * val_num]
+		train_s = np.concatenate((vec_s[:i * val_num], vec_s[(i+1) * val_num:]))
+		val_f = vec_f[i * val_num: (i+1) * val_num]
+		train_f = np.concatenate((vec_f[:i * val_num], vec_f[(i+1) * val_num:]))
+		# import ipdb; ipdb.set_trace()
+		np.savetxt(cggm_dir + 'val_s_' + task + '_' + str(i), val_s)
+		np.savetxt(cggm_dir + 'train_s_' + task + '_' + str(i), train_s)
+		np.savetxt(cggm_dir + 'val_f_' + task + '_' + str(i), val_f)
+		np.savetxt(cggm_dir + 'train_f_' + task + '_' + str(i), train_f)
 	'''CONCORD'''
 	# f_only(task,lam=0.1)
 

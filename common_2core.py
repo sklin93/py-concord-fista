@@ -94,10 +94,14 @@ def common_triangles(omega, r_name, idx_dict):
 	return appearance_triangles
 
 # tmp, for collecting all mrce B common edges
-def mrce_B_vis(tasks, r_name, idx_dict):
+def mrce_B_vis(tasks, param_setting, r_name, idx_dict):
 	s_map = {}
+	s_task_num = {} # this s appears in how many tasks
+	fdir = param_setting['fdir']
 	for task in tasks:
-		B = np.load('fs_results/0.1_mrce_B_'+task+'.npy')
+		b_lam, omg_lam = param_setting[task]
+		B = np.load(fdir+str(b_lam)+'_'+str(omg_lam)+'_mrce_B_'+task+'_common_vis.npy')
+		p, _ = B.shape
 		omega = B.T
 		omega[omega!=0]=1
 		s_sum = np.sum(omega, axis=0)
@@ -107,14 +111,18 @@ def mrce_B_vis(tasks, r_name, idx_dict):
 		for i in range(np.count_nonzero(s_sum)):
 			if sorted_idx_s[i] not in s_map:
 				s_map[sorted_idx_s[i]] = s_sum[sorted_idx_s[i]]
+				s_task_num[sorted_idx_s[i]] = 1
 			else:
-				s_map[sorted_id_s[i]] += s_sum[sorted_idx_s[i]]
+				s_map[sorted_idx_s[i]] += s_sum[sorted_idx_s[i]]
+				s_task_num[sorted_idx_s[i]] += 1
 	print('\n')
 	all_node_used = []
 	for s_id, val in s_map.items():
 		idx = idx_dict[s_id]
-		if val > 50:
-			print(r_name[idx[0]], r_name[idx[1]], val)
+		# if val > 50:
+		if s_task_num[s_id] == 7:
+			print(r_name[idx[0]], r_name[idx[1]], ':\t', int(val), 
+				'\t', round(val/(p * len(tasks)), 5))#, '; appeared in', s_task_num[s_id], 'tasks')
 			print(idx[0], idx[1])
 			if idx[0] not in all_node_used:
 				all_node_used.append(idx[0])
@@ -129,11 +137,22 @@ if __name__ == '__main__':
 	# task = sys.argv[1]
 	tasks = ['EMOTION','GAMBLING','LANGUAGE','MOTOR','RELATIONAL','SOCIAL','WM']
 
+	# hard coded best hyperparameters for different tasks (b_lam, omg_lam)
+	param_setting = {}
+	param_setting['fdir'] = 'fs_results2/'
+	param_setting['EMOTION'] = (0.05011872, 0.19952623)
+	param_setting['LANGUAGE'] = (0.05011872, 0.19952623)
+	param_setting['MOTOR'] = (0.1, 0.1)
+	param_setting['GAMBLING'] = (0.05011872, 0.19952623)
+	param_setting['SOCIAL'] = (0.1, 0.1)
+	param_setting['RELATIONAL'] = (0.05011872, 0.1)
+	param_setting['WM'] = (0.05011872, 0.19952623)
+
 	r_name = info_dict['data']['hcp']
 	r = len(r_name)
 	idx_dict = build_dict(r)
 
-	mrce_B_vis(tasks, r_name, idx_dict)
+	mrce_B_vis(tasks, param_setting, r_name, idx_dict)
 
 	# inall = []
 	# for task in tasks:
