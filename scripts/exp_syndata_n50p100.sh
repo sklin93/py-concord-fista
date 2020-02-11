@@ -1,8 +1,8 @@
 python cscc_merge.py \
---max_itr 20 \
+--max_itr 50 \
 --run_all --verbose \
---cscc_lambda 0.5 --mrce_lambda 0.2 \
---synthetic_dir 'data-utility/syndata_n50p100.pkl' \
+--cscc_lambda 0.4 --mrce_lambda 0.4 \
+--synthetic_dir 'data-utility/syndata_n50p100_2.pkl' \
 --cscc_TOL 1e-3 --cscc_TOL_type 1 --cscc_max_itr 100 \
 --cscc_step_type_out 1 --cscc_const_ss_out 0.02 \
 --cscc_tau 1 --cscc_c_out 0.5 --cscc_gamma 1 \

@@ -139,6 +139,9 @@ def cscc_mrce(args):
             print('nonzero entry count: ', np.count_nonzero(data.Omg))
             print("Inferred Omega:"); print(Omg_hat)
             print('nonzero entry count:', np.count_nonzero(Omg_hat))
+    
+    # if args.run_mrce:
+        
 
     if args.cscc_pMat:
         pMat = data.pMat

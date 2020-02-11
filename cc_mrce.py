@@ -461,7 +461,7 @@ class mrce_syn(object):
 
     def __init__(self, p = 100, q = 100, n = 50, phi = 0.7, \
         err_type = 0, rho = 0.5, Hurst = 0.9, success_prob_s1 = 0.2, success_prob_s2 = 0.2, \
-        pct_nnz = 0.2, base_nnz = 0.7, pMat_noise = 0):
+        pct_nnz = 0.2, base_nnz = 0.7, pMat_noise = 0, distr_type = 1):
 
         self.p = p
         self.n = n
@@ -474,7 +474,6 @@ class mrce_syn(object):
         # 0 -> AR(1)
         # 1 -> Fractional Gaussian Noise (FGN) 
         self.err_type = err_type
-
         # - - - baseline covariance value in AR(1)
         # ranging from 0 to 0.9
         self.rho = rho
@@ -498,6 +497,9 @@ class mrce_syn(object):
         # - - - Parameters for err_type = 2
         self.pct_nnz  = pct_nnz   # percentage of non-zero entries in L matrix
         self.base_nnz = base_nnz  # base value of non-zero entries in L matrix
+
+        # - - - noise distribution given generated partial correlation matrix
+        self.distr_type = distr_type
 
         # - - - noise ratio of noise in pMat
         self.pMat_noise = pMat_noise
@@ -551,9 +553,13 @@ class mrce_syn(object):
             self.Sigma_E = np.linalg.inv(self.Omg)
         
         # generate error matrix E (n x q)
-        # option 1: generate multivariate gaussian noise
-        self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
-        # option 2: generate t-distributed noise
+        if self.distr_type == 1:
+            # option 1: generate multivariate gaussian noise
+            self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
+        elif self.distr_type == 2:
+            # option 2: generate t-distributed noise
+            self.E = np.random.multivariate_normal(np.zeros(self.q), self.Sigma_E, self.n)
+
 
 
         # generate B
