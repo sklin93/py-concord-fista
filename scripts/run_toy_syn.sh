@@ -1,11 +1,9 @@
 cd ../ && \
-python cscc_fista.py \
---outer_verbose \
---MAX_ITR 300 \
---step_type_out 3  \
---const_ss_out 0.05 \
---p_tau 0.1 \
---p_gamma 0.1 --p_lambda 0.2 \
---TOL 1e-3 --TOL_inn 1e-2 \
+python cscc_fista.py --p_lambda 0.1 \
+--outer_verbose --inner_verbose \
+--MAX_ITR 10 --step_type_out 1 --const_ss_out 0.05 --TOL 1e-3  \
+--p_tau 0.1 --p_gamma 0.1 \
+--MAX_ITR_inn 50000 --step_type_inn 1 --const_ss_inn 0.05 --TOL_inn 1e-20  \
+--p_kappa 0.5 \
 --synthetic_dir 'data-utility/syn.pkl' \
---demo #--plot_past_records
+--demo #--inner_cvx_solver #--plot_past_records

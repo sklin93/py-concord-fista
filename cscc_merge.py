@@ -1,9 +1,90 @@
-from cc_mrce import mrce_syn
 from cc_mrce import mrce
+from cc_mrce import mrce_syn
 from cscc_fista import cscc_fista
 
 import numpy as np
-import os, pickle, argparse
+import os, pickle, argparse, time
+os.system("mode con cols=100")
+
+
+
+def overall_objective(args, data, Omg_hat, B_hat):
+
+    obj = - data.n * np.log(np.abs(Omg_hat.diagonal())).sum() \
+          + (1/2) * np.trace( 
+                        np.matmul(
+                            np.matmul((data.Y - np.matmul(data.X, B_hat)).transpose(), 
+                                      (data.Y - np.matmul(data.X, B_hat))), 
+                            np.linalg.matrix_power(Omg_hat, 2))) \
+          + (data.n * args.mrce_lambda / 2) * np.abs(B_hat).sum() \
+          + (args.cscc_lambda / 2) * np.abs(Omg_hat).sum()
+    return obj
+
+
+
+class stat_syn(object):
+
+    def __init__(self, n, Omg_hat=np.array([]), B_hat=np.array([]), 
+                          X_ori=np.array([]),   Y_ori=np.array([])):
+
+        self.n       = n
+        self.Omg_hat = Omg_hat
+        self.B_hat   = B_hat
+        self.X_ori   = X_ori
+        self.Y_ori   = Y_ori
+        self.Y_hat   = np.array([])
+        self.get_output()
+
+    def get_output(self):
+
+        self.Y_hat = np.matmul(self.X_ori, self.B_hat)
+
+    def get_solution(self, B_hat):
+
+        self.B_hat = B_hat
+
+    def get_fpr(self, A_ori, A_hat):
+        # compute False Positive Rate and True Positive Rate
+
+        num_ori = np.count_nonzero(A_ori)
+        num_hat = np.count_nonzero(A_hat) 
+
+        num_TP = np.count_nonzero(np.logical_and.reduce([A_ori, A_hat]))
+        num_FN = num_ori - num_TP
+        num_FP = num_hat - num_TP
+        num_TN = A_ori.size - num_ori
+
+        FPR = num_FP / (num_FP + num_TN)
+        TPR = num_TP / (num_TP + num_FN)
+        return FPR, TPR
+
+    def get_mse(self):
+        mse = np.sum(
+                    np.divide(
+                        np.square(self.Y_ori-self.Y_hat).sum(axis=1), 
+                        np.square(self.Y_ori).sum(axis=1)
+                        )
+                    ) / self.n
+        return mse
+
+    def get_mape(self):
+        mape = np.sum(
+                    np.divide(
+                        np.abs(self.Y_ori-self.Y_hat).sum(axis=1), 
+                        np.abs(self.Y_ori).sum(axis=1)
+                        )
+                    ) / self.n
+        return mape
+
+    def get_mpe(self):
+
+        mpe = np.sum(
+                    np.divide(
+                        (self.Y_ori-self.Y_hat).sum(axis=1), 
+                        self.Y_ori.sum(axis=1)
+                        )
+                    ) / self.n
+        return mpe
 
 
 def cscc_mrce(args):
@@ -15,7 +96,8 @@ def cscc_mrce(args):
         print("Generating synthetic dataset ...")
         data = mrce_syn(p = args.p, q = args.q, n = args.n, phi = args.phi, \
                 err_type = args.err_type, rho = args.rho, pMat_noise = args.pMat_noise, \
-                pct_nnz=args.pct_nnz, base_nnz=args.base_nnz)
+                pct_nnz=args.pct_nnz, base_nnz=args.base_nnz, \
+                success_prob_s1=args.success_prob_s1, success_prob_s2=args.success_prob_s2)
         data.generate()
         with open(args.synthetic_dir, "wb") as pfile:
             pickle.dump(data, pfile) 
@@ -30,7 +112,7 @@ def cscc_mrce(args):
         print('nonzero entry count: ', np.count_nonzero(data.Omg))
         print("Given pMat:"); print(data.pMat)
         print('nonzero entry count: ', np.count_nonzero(data.pMat))
-        input('... press any key to continue ...')
+        # input('... press any key to continue ...')
 
     # (estimate Omega)
     # partial correlation graph estimation
@@ -40,11 +122,15 @@ def cscc_mrce(args):
         problem = cscc_fista(D=data.Y-np.matmul(data.X, data.B), 
                     pMat=np.ones((data.q, data.q)), # pMat=data.pMat, 
                     num_var=data.q, 
-                    step_type_out = args.cscc_step_type_out, const_ss_out = args.cscc_const_ss_out, 
+                    step_type_out = args.cscc_step_type_out, 
+                    const_ss_out = args.cscc_const_ss_out, c_outer=args.cscc_c_out,
                     p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
-                    MAX_ITR=args.cscc_max_itr, 
-                    TOL=args.cscc_TOL, TOL_inn=args.cscc_TOL_inn,
-                    verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
+                    MAX_ITR=args.cscc_max_itr, MAX_ITR_inn=args.cscc_max_itr_inn,
+                    TOL=args.cscc_TOL, TOL_type=args.cscc_TOL_type,
+                    TOL_inn=args.cscc_TOL_inn, c_inner=args.cscc_c_inn,
+                    verbose=args.cscc_outer_verbose, 
+                    verbose_inn=args.cscc_inner_verbose,
+                    plot_in_loop=args.cscc_plot_in_loop,
                     no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
                     record_label=record_label, Omg_ori=data.Omg)
         Omg_hat, label = problem.solver_convset()
@@ -53,44 +139,95 @@ def cscc_mrce(args):
             print('nonzero entry count: ', np.count_nonzero(data.Omg))
             print("Inferred Omega:"); print(Omg_hat)
             print('nonzero entry count:', np.count_nonzero(Omg_hat))
-            
+    
+    # if args.run_mrce:
+        
+
+    if args.cscc_pMat:
+        pMat = data.pMat
+    else:
+        pMat = np.ones((data.q, data.q))
 
     if args.run_all:
+        itr     = 0
         loop    = True
         B_hat   = np.zeros((data.p, data.q))
-        Omg_hat = np.zeros((data.q, data.q))
+        Omg_hat = np.identity(data.q) # np.zeros((data.q, data.q))
         record_label = os.path.splitext(os.path.basename(args.synthetic_dir))[0]
+        stat_obj = stat_syn(n=data.n, 
+                            Omg_hat=Omg_hat, B_hat=B_hat, 
+                            X_ori=data.X, Y_ori=data.Y)
         while loop:
+            itr += 1
             # (estimate Omega)
             # partial correlation graph estimation
+            t = time.time()
             problem = cscc_fista(D=data.Y-np.matmul(data.X, B_hat), 
-                        pMat=data.pMat, num_var=data.q, 
-                        step_type_out = args.cscc_step_type_out, const_ss_out = args.cscc_const_ss_out, 
-                        p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
-                        MAX_ITR=args.cscc_max_itr, 
-                        TOL=args.cscc_TOL, TOL_inn=args.cscc_TOL_inn,
-                        verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
-                        no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
-                        record_label=record_label)
+                pMat=pMat, num_var=data.q, 
+                step_type_out = args.cscc_step_type_out, 
+                const_ss_out = args.cscc_const_ss_out, c_outer=args.cscc_c_out,
+                p_gamma=args.cscc_gamma, p_lambda=args.cscc_lambda, p_tau=args.cscc_tau, 
+                MAX_ITR=args.cscc_max_itr, 
+                TOL=args.cscc_TOL, TOL_type=args.cscc_TOL_type,
+                MAX_ITR_inn=args.cscc_max_itr_inn,
+                TOL_inn=args.cscc_TOL_inn, c_inner=args.cscc_c_inn,
+                verbose=args.cscc_outer_verbose, verbose_inn=args.cscc_inner_verbose,
+                plot_in_loop=args.cscc_plot_in_loop,
+                no_constraints=args.no_constraints, inner_cvx_solver=args.inner_cvx_solver,
+                record=args.cscc_record, record_label=record_label, Omg_ori=data.Omg)
             Omg_hat, label = problem.solver_convset()
+            # force threshold
+            Omg_hat[np.abs(Omg_hat)<1e-3] = 0
             if args.verbose:
-                print("\n\n= = = Finished = = =\nGroundtruth Omega:"); print(data.Omg)
-                print('nonzero entry count: ', np.count_nonzero(data.Omg))
-                print("Inferred Omega:"); print(Omg_hat)
-                print('nonzero entry count:', np.count_nonzero(Omg_hat))
+                print("= = = Omg-estimate itr-{0:d} finished in {1:.3f} s = = =".format(itr, time.time()-t))
+                # print("Groundtruth Omega:"); print(data.Omg)
+                print('Omg_ori nonzeros: ', np.count_nonzero(data.Omg))
+                # print("Inferred Omega:"); print(Omg_hat)
+                print('Omg_hat nonzeros: ', np.count_nonzero(Omg_hat))
+                print('overall objective value:', overall_objective(args, data, Omg_hat, B_hat))
+
+                # compute FPR
+                FPR, TPR = stat_obj.get_fpr(data.Omg, Omg_hat)
+                print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
+
+                # input('...press any key...')
+                print("\n\n")
             
             # (estimate B) 
             # regression coefficient estimation
-            problem = mrce(Omg=np.linalg.matrix_power(Omg_hat,2),
+            t = time.time()
+            problem = mrce(Omg=np.linalg.matrix_power(Omg_hat,2), 
                         lamb2=args.mrce_lambda, X=data.X, Y=data.Y,
                         step_type=args.mrce_step_type, const_ss=args.mrce_const_ss, 
                         c=0.5, p_tau=args.mrce_tau, alpha=1, 
-                        TOL_ep=0.05, max_itr=args.mrce_max_itr, 
-                        verbose=args.mrce_verbose, verbose_plots=args.mrce_verbose_plots)
+                        TOL_ep=args.mrce_TOL, TOL_type=args.mrce_TOL_type,
+                        max_itr=args.mrce_max_itr, 
+                        verbose=args.mrce_verbose, verbose_plots=args.mrce_verbose_plots,
+                        B_ori = data.B)
+            B_hat = problem.fista_solver_B()
+            stat_obj.get_solution(B_hat)
+            stat_obj.get_output()
             if args.verbose:
+                print("= = = B-estimate itr-{0:d} finished in {1:.3f} s = = =".format(itr, time.time()-t))
+                # print("Groundtruth B:"); print(data.B)
+                print('B_ori nonzeros: ', np.count_nonzero(data.B))
+                # print("Inferred B:"); print(B_hat)
+                print('B_hat nonzeros:', np.count_nonzero(B_hat))
                 print('objective at ground-truth B: {:.3e}'.format(problem.likelihood_B(data.B)))
-                input('...press any key...')
-            B_hat   = problem.fista_solver_B()
+                print('overall objective value:', overall_objective(args, data, Omg_hat, B_hat))
+
+                # compute FPR
+                FPR, TPR = stat_obj.get_fpr(data.B, B_hat)
+                print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
+                # compute MSE and ...
+                print('MSE: {0:.3f}, MPE: {1:.3f}, MAPE: {2:.3f}'.format(
+                            stat_obj.get_mse(), stat_obj.get_mpe(), stat_obj.get_mape()))
+
+                # input('...press any key...')      
+                print("\n\n")
+
+            loop = itr <= args.max_itr
+                
 
     return 
 
@@ -116,6 +253,8 @@ if __name__ == "__main__":
                         help='Whether to run MRCE to estimate B')
     parser.add_argument('--verbose', default=False, action='store_true',
                         help='Whether to display details of very-outer loop')
+    parser.add_argument('--max_itr', type=int, default=20,
+                        help='Maximum iteration of Omg-B loop')
 
     # Pick or generate a dataset
     parser.add_argument('--generate_synthetic', default=False, action='store_true',
@@ -164,18 +303,32 @@ if __name__ == "__main__":
                         help='tau: step length')
     parser.add_argument('--cscc_TOL', type=float, default=1e-3,
                         help='Tolerance in outer loop')
+    parser.add_argument('--cscc_TOL_type', type=int, default=0,
+                        help='Convergence criterion type in outer loop')
     parser.add_argument('--cscc_TOL_inn', type=float, default=1e-2,
                         help='Tolerance in inner loop')
+    parser.add_argument('--cscc_pMat', default=False, action='store_true', 
+                        help='Whether to apply proximity mask')
+    parser.add_argument('--cscc_c_out', type=float, default=0.5,
+                        help='c: heuristic ratio in step length search in outer loop')
+    parser.add_argument('--cscc_c_inn', type=float, default=0.5,
+                        help='c: heuristic ratio in step length search in inner loop')
+
 
     # Debugging for CSCC-Omg estimate
     parser.add_argument('--cscc_inner_verbose', default=False, action='store_true',
                         help='Whether to display optimization updates of inner loop')
-    parser.add_argument('--cscc_outer_verbose', default=True, action='store_true',
+    parser.add_argument('--cscc_outer_verbose', default=False, action='store_true',
                         help='Whether to display optimization updates of outer loop')
     parser.add_argument('--inner_cvx_solver', default=False, action='store_true',
                         help='Use cvx solver in inner loop. Not recommended for high dimensional datasets such as HCP. Works ok on small synthetic datasets.')
     parser.add_argument('--no_constraints', default=False, action='store_true', 
                         help='Solve the problem with no constraints.')
+    parser.add_argument('--cscc_record', default=False, action='store_true',
+                        help='Whether to record meta-results in each iteration')
+    parser.add_argument('--cscc_plot_in_loop', default=False, action='store_true',
+                        help='Whether to plot meta-results of CSCC outer loop')
+                        
 
     # Parameters of MRCE-B estimate
     parser.add_argument('--mrce_lambda', type=float, default=1,
@@ -188,6 +341,10 @@ if __name__ == "__main__":
                         help='Type of step length setting')
     parser.add_argument('--mrce_const_ss', type=float, default=0.1,
                         help='Constant step length')
+    parser.add_argument('--mrce_TOL', type=float, default=1e-3,
+                        help='Tolerance in B-estimate')
+    parser.add_argument('--mrce_TOL_type', type=int, default=0,
+                        help='Convergence criterion type in B-estimate')
 
     # Debugging for MRCE-B estimate
     parser.add_argument('--gt_init', default=False, action='store_true',

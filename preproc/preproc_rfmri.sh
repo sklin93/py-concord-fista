@@ -313,7 +313,7 @@ if $FLAG_TSEXTRACT; then
                 echo "Extraction started, input: $rfMRI_final"
                 mkdir -p $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION
                 time_start="$(date -u +%s)"
-                parallel --jobs 8 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
+                parallel --jobs 4 "3dmaskdump -xyz -mask $MASK_DIR/{}.nii.gz $rfMRI_final \
                     > $rfMRI_ts_dir/$ATLAS_NAME/$ATLAS_VERSION/{}.txt" ::: "${ROI_INDEX_LIST[@]}"
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
