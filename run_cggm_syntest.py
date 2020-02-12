@@ -45,8 +45,6 @@ def load_model_param(filepath):
         info = [int(s) for s in line.strip().split(' ')]
         A = np.zeros((info[0],info[1]))
         nz_info = info[2]
-        print('non-zero entry number: ', nz_info)
-        print('shape: ', A.shape)
         while line:
             line = fp.readline()
             if line:
@@ -122,7 +120,9 @@ def run_cggm(args):
     
     # get results
     theta = load_model_param(file_theta)
+    print('[Theta] non-zeros: ', np.count_nonzero(theta))
     lambd = load_model_param(file_lambda)
+    print('[Lambda] non-zeros: ', np.count_nonzero(lambd))
 
     # Do prediction of Y using Theta, Lambda given X_test
     Y_pred = -np.dot(np.dot(inv(lambd), theta.T), data.X_test.T).T
@@ -131,11 +131,11 @@ def run_cggm(args):
 
     B_hat = -np.dot(theta, inv(lambd))
     FPR, TPR = eval_fpr(data.B, B_hat)
-    print('[B_hat] FPR: {0:.3f}, TPR: {1:.3f}'.format(FPR, TPR))
+    print('[B_hat] FPR: {0:.3f}, TPR: {1:.3f}, non-zeros:{2:d}'.format(FPR, TPR, np.count_nonzero(B_hat)))
 
     Omg_hat = lambd
     FPR, TPR = eval_fpr(data.Omg, Omg_hat)
-    print('[Omg_hat] FPR: {0:.3f}, TPR: {1:.3f}'.format(FPR, TPR))
+    print('[Omg_hat] FPR: {0:.3f}, TPR: {1:.3f}, non-zeros:{2:d}'.format(FPR, TPR, np.count_nonzero(Om_hat)))
 
     return 
 
