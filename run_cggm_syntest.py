@@ -116,7 +116,7 @@ def run_cggm(args):
 
     # run the program
     if args.run_cggm:
-        command_str = "mega-cggm/AltNewtonCD/cggmfast_run -y "+str(args.lambda1)+" -x "+str(args.lambda2)+" -v 1 "+str(data.n)+" "+str(data.p)+" "+str(data.n)+" "+str(data.q)+" "+file_output+" "+file_input+" "+file_lambda+" "+file_theta+" "+file_stats
+        command_str = "mega-cggm/AltNewtonCD/cggmfast_run -y "+str(args.lambda1)+" -x "+str(args.lambda2)+" -v 0 "+str(data.n)+" "+str(data.p)+" "+str(data.n)+" "+str(data.q)+" "+file_output+" "+file_input+" "+file_lambda+" "+file_theta+" "+file_stats
         print(command_str)
         os.system(command_str)
     
