@@ -1,8 +1,10 @@
 from cc_mrce import mrce
 from cc_mrce import mrce_syn
 from cscc_fista import cscc_fista
+from scipy.stats.stats import pearsonr
 
 import numpy as np
+import scipy.linalg as LA
 import os, pickle, argparse, time
 os.system("mode con cols=100")
 
@@ -30,7 +32,7 @@ class stat_syn(object):
         self.n       = n
         self.Omg_hat = Omg_hat
         self.B_hat   = B_hat
-        self.X_ori   = X_ori
+        self.X_ori   = X_ori	
         self.Y_ori   = Y_ori
         self.Y_hat   = np.array([])
         self.get_output()
@@ -57,6 +59,29 @@ class stat_syn(object):
         FPR = num_FP / (num_FP + num_TN)
         TPR = num_TP / (num_TP + num_FN)
         return FPR, TPR
+
+    def get_eval(self):
+
+        # correlation coefficient and p-value
+        mpe = [];      mse = [];      mape = []
+        min_pval = 1;  max_pval = 0;  avg_r = []
+        for i in range(len(self.Y_ori)):
+            mpe.append((self.Y_ori[i] - self.Y_hat[i]).sum() / self.Y_ori[i].sum())
+            mse.append((LA.norm(self.Y_ori[i] - self.Y_hat[i]) ** 2) / (LA.norm(self.Y_ori[i]) ** 2))
+            mape.append(np.abs((self.Y_ori[i] - self.Y_hat[i]).sum()) / self.Y_ori[i].sum())
+            r, pval = pearsonr(self.Y_hat[i], self.Y_ori[i])
+            avg_r.append(r)
+            if pval < min_pval:
+                min_pval = pval
+            if pval > max_pval:
+                max_pval = pval
+        
+        mpe = sum(mpe)/len(mpe)
+        mse = sum(mse)/len(mse)
+        mape = sum(mape)/len(mape)
+        avg_r = sum(avg_r)/len(avg_r)
+
+        return mpe, mse, mape, avg_r, min_pval, max_pval
 
     def get_mse(self):
         mse = np.sum(
@@ -221,8 +246,9 @@ def cscc_mrce(args):
                 FPR, TPR = stat_obj.get_fpr(data.B, B_hat)
                 print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
                 # compute MSE and ...
-                print('MSE: {0:.3f}, MPE: {1:.3f}, MAPE: {2:.3f}'.format(
-                            stat_obj.get_mse(), stat_obj.get_mpe(), stat_obj.get_mape()))
+                mpe, mse, mape, avg_r, min_pval, max_pval = stat_obj.get_eval()
+                print('MSE: {0:.3e}, MPE: {1:.3e}, MAPE: {2:.3e}'.format(mpe, mse, mape))
+                print('Corr: {0:.3e}, min_pval: {1:.3e}, max_pval: {2:.3e}'.format(avg_r, min_pval, max_pval))
 
                 # input('...press any key...')      
                 print("\n\n")

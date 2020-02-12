@@ -56,11 +56,11 @@ def load_model_param(filepath):
 def eval_cggm(pred_f, vec_f):
 
     # correlation coefficient and p-value
-	mpe = [];      mape = [];       avg_r = [];
-	min_pval = 1;  max_pval = 0;
+	mpe = [];      mape = [];       avg_r = []
+	min_pval = 1;  max_pval = 0
 	for i in range(len(vec_f)):
 		mpe.append((vec_f[i] - pred_f[i]).sum() / vec_f[i].sum())
-		mape.append((LA.norm(vec_f[i] - pred_f[i]) ** 2) / (LA.norm(vec_f) ** 2))
+		mape.append((LA.norm(vec_f[i] - pred_f[i]) ** 2) / (LA.norm(vec_f[i]) ** 2))
 		# mape.append(np.abs((vec_f[i] - pred_f[i]).sum()) / vec_f[i].sum())
 		r, pval = pearsonr(pred_f[i],vec_f[i])
 		avg_r.append(r)
