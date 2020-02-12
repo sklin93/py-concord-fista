@@ -135,7 +135,7 @@ def run_cggm(args):
 
     Omg_hat = lambd
     FPR, TPR = eval_fpr(data.Omg, Omg_hat)
-    print('[Omg_hat] FPR: {0:.3f}, TPR: {1:.3f}, non-zeros:{2:d}'.format(FPR, TPR, np.count_nonzero(Om_hat)))
+    print('[Omg_hat] FPR: {0:.3f}, TPR: {1:.3f}, non-zeros:{2:d}'.format(FPR, TPR, np.count_nonzero(Omg_hat)))
 
     return 
 
