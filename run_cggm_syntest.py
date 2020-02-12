@@ -56,8 +56,8 @@ def load_model_param(filepath):
 
 
 def eval_cggm(pred_f, vec_f):
+
     # correlation coefficient and p-value
-    
 	mpe = []
 	mape = []
 	avg_r = []
@@ -77,8 +77,25 @@ def eval_cggm(pred_f, vec_f):
 	mpe = sum(mpe)/len(mpe)
 	mape = sum(mape)/len(mape)
 	avg_r = sum(avg_r)/len(avg_r)
+
 	return mpe, mape, avg_r, min_pval, max_pval
 
+
+def eval_fpr(A_ori, A_hat):
+
+    # FPR
+    num_ori = np.count_nonzero(A_ori)
+    num_hat = np.count_nonzero(A_hat) 
+
+    num_TP = np.count_nonzero(np.logical_and.reduce([A_ori, A_hat]))
+    num_FN = num_ori - num_TP
+    num_FP = num_hat - num_TP
+    num_TN = A_ori.size - num_ori
+
+    FPR = num_FP / (num_FP + num_TN)
+    TPR = num_TP / (num_TP + num_FN)
+
+    return FPR, TPR
 
 
 def run_cggm(args):
@@ -114,6 +131,14 @@ def run_cggm(args):
     Y_pred = -np.dot(np.dot(inv(lambd), theta.T), data.X_test.T).T
     mpe, mape, avg_r, min_p, max_p = eval_cggm(Y_pred, data.Y_test)
     print('***VAL DATA***\nMPE:{0:.3e}\nMAPE:{1:.3e}\nCorr:{2:.3e}\nMin_pval:{3:.3e}\nMax_pval:{4:.3e}'.format(mpe, mape, avg_r, min_p, max_p))
+
+    B_hat = -np.dot(theta, inv(lambd))
+    FPR, TPR = eval_fpr(data.B, B_hat)
+    print('[B_hat] FPR: {0:.3f}, TPR: {1:.3f}'.format(FPR, TPR))
+
+    Omg_hat = lambd
+    FPR, TPR = eval_fpr(data.Omg, Omg_hat)
+    print('[Omg_hat] FPR: {0:.3f}, TPR: {1:.3f}'.format(FPR, TPR))
 
     return 
 
