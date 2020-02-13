@@ -56,11 +56,11 @@ def load_model_param(filepath):
 def eval_cggm(pred_f, vec_f):
 
     # correlation coefficient and p-value
-    mpe = [];      mape = [];       avg_r = []
+    mpe = [];      mse = [];       avg_r = []
     min_pval = 1;  max_pval = 0
     for i in range(len(vec_f)):
         mpe.append((vec_f[i] - pred_f[i]).sum() / vec_f[i].sum())
-        mape.append((LA.norm(vec_f[i] - pred_f[i]) ** 2) / (LA.norm(vec_f[i]) ** 2))
+        mse.append((LA.norm(vec_f[i] - pred_f[i]) ** 2) / (LA.norm(vec_f[i]) ** 2))
         # mape.append(np.abs((vec_f[i] - pred_f[i]).sum()) / vec_f[i].sum())
         r, pval = pearsonr(pred_f[i],vec_f[i])
         avg_r.append(r)
@@ -70,13 +70,11 @@ def eval_cggm(pred_f, vec_f):
             max_pval = pval
 
     mpe = sum(mpe)/len(mpe)
-    mape = sum(mape)/len(mape)
+    mse = sum(mse)/len(mse)
     avg_r = sum(avg_r)/len(avg_r)
-    mpe = np.sum(np.divide(np.square(vec_f-pred_f).sum(axis=1),np.square(pred_f).sum(axis=1)))/len(vec_f)
+    # mse = np.sum(np.divide(np.square(vec_f-pred_f).sum(axis=1),np.square(pred_f).sum(axis=1)))/len(vec_f)
 
-    print(vec_f.shape)
-
-    return mpe, mape, avg_r, min_pval, max_pval
+    return mpe, mse, avg_r, min_pval, max_pval
 
 
 def eval_fpr(A_ori, A_hat):
