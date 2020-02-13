@@ -72,14 +72,6 @@ def eval_cggm(pred_f, vec_f):
     mpe = sum(mpe)/len(mpe)
     mse = sum(mse)/len(mse)
     avg_r = sum(avg_r)/len(avg_r)
-    print(mse)
-    mse = np.sum(
-            np.divide(
-                np.square(vec_f-pred_f).sum(axis=1),
-                np.square(vec_f).sum(axis=1)
-            )
-          )/len(vec_f)
-    print(mse)
 
     return mpe, mse, avg_r, min_pval, max_pval
 
@@ -134,8 +126,8 @@ def run_cggm(args):
 
     # Do prediction of Y using Theta, Lambda given X_test
     Y_pred = -np.dot(np.dot(inv(lambd), theta.T), data.X_test.T).T
-    mpe, mape, avg_r, min_p, max_p = eval_cggm(Y_pred, data.Y_test)
-    print('***VAL DATA***\nMPE:{0:.3e}, MSE:{1:.3e}\nCorr:{2:.3e}, Min_pval:{3:.3e}, Max_pval:{4:.3e}'.format(mpe, mape, avg_r, min_p, max_p))
+    mpe, mse, avg_r, min_p, max_p = eval_cggm(Y_pred, data.Y_test)
+    print('***VAL DATA***\nMPE:{0:.3e}, MSE:{1:.3e}\nCorr:{2:.3e}, Min_pval:{3:.3e}, Max_pval:{4:.3e}'.format(mpe, mse, avg_r, min_p, max_p))
 
     B_hat = -np.dot(theta, inv(lambd))
     FPR, TPR = eval_fpr(data.B, B_hat)

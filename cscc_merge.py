@@ -247,7 +247,7 @@ def cscc_mrce(args):
                 print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
                 # compute MSE and ...
                 mpe, mse, mape, avg_r, min_pval, max_pval = stat_obj.get_eval()
-                print('MSE: {0:.3e}, MPE: {1:.3e}, MAPE: {2:.3e}'.format(mpe, mse, mape))
+                print('MPE: {0:.3e}, MSE: {1:.3e}, MAPE: {2:.3e}'.format(mpe, mse, mape))
                 print('Corr: {0:.3e}, min_pval: {1:.3e}, max_pval: {2:.3e}'.format(avg_r, min_pval, max_pval))
                 print('MSE2: {0:.3e}'.format(stat_obj.get_mse()))
                 # input('...press any key...')      
