@@ -76,7 +76,7 @@ def eval_cggm(pred_f, vec_f):
     mse = np.sum(
             np.divide(
                 np.square(vec_f-pred_f).sum(axis=1),
-                np.square(pred_f).sum(axis=1)
+                np.square(vec_f).sum(axis=1)
             )
           )/len(vec_f)
     print(mse)
