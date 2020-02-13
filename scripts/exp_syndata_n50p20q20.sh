@@ -1,5 +1,5 @@
 python cscc_merge.py --run_all --verbose \
---cscc_lambda 0.5 --mrce_lambda 0.3 --max_itr 50 \
+--cscc_lambda 0.9 --mrce_lambda 0.4 --max_itr 50 \
 --synthetic_dir 'data-utility/syndata_n50p20q20.pkl' \
 --cscc_TOL 1e-3 --cscc_TOL_type 1 \
 --cscc_max_itr 100 \
