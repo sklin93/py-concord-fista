@@ -74,7 +74,7 @@ def eval_cggm(pred_f, vec_f):
     avg_r = sum(avg_r)/len(avg_r)
     mpe = np.sum(np.divide(np.square(vec_f-pred_f).sum(axis=1),np.square(pred_f).sum(axis=1)))/len(vec_f)
 
-    print(vec_f.size)
+    print(vec_f.shape)
 
     return mpe, mape, avg_r, min_pval, max_pval
 
