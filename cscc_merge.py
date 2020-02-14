@@ -136,8 +136,6 @@ def cscc_mrce(args):
     if args.verbose:
         print("Groundtruth Omega:"); print(data.Omg)
         print('nonzero entry count: ', np.count_nonzero(data.Omg))
-        print("Given pMat:"); print(data.pMat)
-        print('nonzero entry count: ', np.count_nonzero(data.pMat))
         # input('... press any key to continue ...')
 
     # (estimate Omega)
@@ -171,8 +169,48 @@ def cscc_mrce(args):
 
     if args.cscc_pMat:
         pMat = data.pMat
-    else:
+
+    if args.cscc_nopMat:
         pMat = np.ones((data.q, data.q))
+
+    # add more feasible entries to pMat mask
+    if args.pMat_noise > 0:
+
+        mask_dir = args.synthetic_dir + '_pmatN'+str(args.pMat_noise)+'.pkl'
+
+        if os.path.isfile(mask_dir):
+            print("... loading existing constrain-mask ...")
+            with open(mask_dir, "rb") as pfile:
+                pMat = pickle.load(pfile)
+        else:
+            print("... generating new constrain-mask ...")
+            pMat = data.Omg.copy()
+            pMat[pMat != 0] = 1
+            num_nz = np.count_nonzero(pMat)
+            num_noise = int(np.floor(num_nz * args.pMat_noise/2))
+            print("... sampling {0:d} entries in pMat ...".format(2 * num_noise))
+
+            idx_r = np.random.randint(data.q, size=num_noise)
+            idx_c = np.random.randint(data.q, size=num_noise)
+            pMat[idx_r, idx_c] = 1
+            pMat = pMat + pMat.transpose()
+            pMat[pMat != 0] = 1     
+            num_nz2 = np.count_nonzero(pMat)
+            print("... adding {0:d} feasible entries in pMat ...".format(num_nz2-num_nz))
+            print("... symmetric check: {0} ...".format(np.allclose(pMat, pMat.T, rtol=1e-5, atol=1e-8)))
+
+            with open(mask_dir, "wb") as pfile:
+                pickle.dump(pMat, pfile)
+
+    elif args.pMat_noise == 0:
+
+        pMat = data.Omg.copy()
+        pMat[pMat != 0] = 1
+
+    # if args.verbose:
+    print("Given pMat:"); print(pMat)
+    print('nonzero entry count: {0:d}'.format(np.count_nonzero(pMat)))
+
 
     if args.run_all:
         itr     = 0
@@ -182,7 +220,7 @@ def cscc_mrce(args):
         record_label = os.path.splitext(os.path.basename(args.synthetic_dir))[0]
         stat_obj = stat_syn(n=data.n, 
                             Omg_hat=Omg_hat, B_hat=B_hat, 
-                            X_ori=data.X, Y_ori=data.Y)
+                            X_ori=data.X_test, Y_ori=data.Y_test)
         while loop:
             itr += 1
             # (estimate Omega)
@@ -214,7 +252,7 @@ def cscc_mrce(args):
 
                 # compute FPR
                 FPR, TPR = stat_obj.get_fpr(data.Omg, Omg_hat)
-                print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
+                print('(TPR): ({0:.3f}), (FPR): ({1:.3f})'.format(TPR, FPR))
 
                 # input('...press any key...')
                 print("\n\n")
@@ -244,12 +282,11 @@ def cscc_mrce(args):
 
                 # compute FPR
                 FPR, TPR = stat_obj.get_fpr(data.B, B_hat)
-                print('TPR: {0:.3f}, FPR: {1:.3f}'.format(TPR, FPR))
+                print('<TPR>: <{0:.3f}>, <FPR>: <{1:.3f}>'.format(TPR, FPR))
                 # compute MSE and ...
                 mpe, mse, mape, avg_r, min_pval, max_pval = stat_obj.get_eval()
-                print('MPE: {0:.3e}, MSE: {1:.3e}, MAPE: {2:.3e}'.format(mpe, mse, mape))
+                print('MPE: {0:.3e}, MSE: [[{1:.3e}]], MAPE: {2:.3e}'.format(mpe, mse, mape))
                 print('Corr: {0:.3e}, min_pval: {1:.3e}, max_pval: {2:.3e}'.format(avg_r, min_pval, max_pval))
-                print('MSE2: {0:.3e}'.format(stat_obj.get_mse()))
                 # input('...press any key...')      
                 print("\n\n")
 
@@ -317,6 +354,9 @@ if __name__ == "__main__":
     parser.add_argument('--df', type=int, default=2, 
                         help='dataset generation: degrees of freedom for multivariate t-distribution')
 
+
+                        
+
     # Parameters of CSCC-Omg estimate
     parser.add_argument('--cscc_max_itr', type=int, default=20,
                         help='Maximum iteration of outer loop')
@@ -340,6 +380,8 @@ if __name__ == "__main__":
                         help='Tolerance in inner loop')
     parser.add_argument('--cscc_pMat', default=False, action='store_true', 
                         help='Whether to apply proximity mask')
+    parser.add_argument('--cscc_nopMat', default=False, action='store_true', 
+                        help='Whether to remove proximity mask')
     parser.add_argument('--cscc_c_out', type=float, default=0.5,
                         help='c: heuristic ratio in step length search in outer loop')
     parser.add_argument('--cscc_c_inn', type=float, default=0.5,

@@ -185,11 +185,11 @@ class cscc_fista(object):
             #     print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
         
         else:
-            print("~ ~ ~ No constraint is applied.")
+            # print("~ ~ ~ No constraint is applied.")
             LambdaMat = self.p_lambda * np.ones((self.num_var, self.num_var))
             np.fill_diagonal(LambdaMat, 0)
             Omg = np.sign(self.A) * np.maximum(abs(self.A)-tau*LambdaMat, 0.0)
-            print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
+            # print("non-zeros in (Omg): {0:d}".format(np.count_nonzero(Omg)))
 
         return Omg
 
