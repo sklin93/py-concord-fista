@@ -1,5 +1,5 @@
 # Usage exapmles:
-# ./preproc_rfmri.sh ~/localrepo/fs125 REST1 ROIv_scale33 false false false false false false
+# ./test.sh --workpath=/work/code/fs125_rs --task=REST1 --atlas=ROIv_scale33  --download=true --upsampling=true --smoothing=false --bpfiltering=true --tsextract=true --overwrite=false
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
@@ -8,19 +8,12 @@
 # with a parcellation in a different scale or resolution.
 
 
-
 # MNINonLinear/Results/tfMRI_EMOTION_LR/tfMRI_EMOTION_LR.nii.gz
 # MNINonLinear/Results/rfMRI_REST1_LR/rfMRI_REST1_LR.nii.gz
-
 # HCP/112112/MNINonLinear/Results/rfMRI_REST1_LR/rfMRI_REST1_LR.nii.gz
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ####
-# Preparing
-
-# working directory where you save your metadata and final results
-WORK_DIR="$1"
-fMRI_TASK="$2" # fMRI_TASK="REST1"
-ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
+# Preparations
 
 # phase encoding options
 # declare -a PHASE_ENCODING=("LR" "RL")
@@ -29,16 +22,75 @@ declare -a PHASE_ENCODING=("RL")
 # make shell scripts runnable under current directory
 chmod +x *.sh
 
-# enable FLAGS
-FLAG_DOWNLOAD="$4"
-FLAG_UPSAMPING="$5"
-FLAG_SMOOTHING="$6"
-FLAG_BPFILTERING="$7"
-FLAG_TSEXTRACT="$8"
-FLAG_OVERWRITE="$9"
+# working directory where you save your metadata and final results
+# WORK_DIR="$1"
+# fMRI_TASK="$2" # fMRI_TASK="REST1"
+# ATLAS_VERSION="$3" # ATLAS_VERSION="ROIv_scale33"
 
+for i in "$@"
+do
+case $i in
+    -w=*|--workpath=*)
+    WORK_DIR="${i#*=}"
+    shift # past argument=value
+    ;;
+    -t=*|--task=*)
+    fMRI_TASK="${i#*=}"
+    shift # past argument=value
+    ;;
+    -a=*|--atlas=*)
+    ATLAS_VERSION="${i#*=}"
+    shift # past argument=value
+    ;;
+    -d=*|--download=*)
+    FLAG_DOWNLOAD="${i#*=}"
+    shift # past argument=value
+    ;;
+    -u=*|--upsampling=*)
+    FLAG_UPSAMPING="${i#*=}"
+    shift # past argument=value
+    ;;
+    -s=*|--smoothing=*)
+    FLAG_SMOOTHING="${i#*=}"
+    shift # past argument=value
+    ;;
+    -f=*|--bpfiltering=*)
+    FLAG_BPFILTERING="${i#*=}"
+    shift # past argument=value
+    ;;
+    -e=*|--tsextract=*)
+    FLAG_TSEXTRACT="${i#*=}"
+    shift # past argument=value
+    ;;
+    -o=*|--overwrite=*)
+    FLAG_OVERWRITE="${i#*=}"
+    shift # past argument=value
+    ;;
+    --default)
+    DEFAULT=YES
+    shift # past argument with no value
+    ;;
+    *)
+          # unknown option
+    ;;
+esac
+done
+
+echo "Input arguments:"
+echo "WORK_DIR         = ${WORK_DIR}"
+echo "fMRI_TASK        = ${fMRI_TASK}"
+echo "ATLAS_VERSION    = ${ATLAS_VERSION}"
+
+echo "FLAG_DOWNLOAD    = ${FLAG_DOWNLOAD}"
+echo "FLAG_UPSAMPING   = ${FLAG_UPSAMPING}"
+echo "FLAG_SMOOTHING   = ${FLAG_SMOOTHING}"
+echo "FLAG_BPFILTERING = ${FLAG_BPFILTERING}"
+echo "FLAG_TSEXTRACT   = ${FLAG_TSEXTRACT}"
+echo "FLAG_OVERWRITE   = ${FLAG_OVERWRITE}"
+
+# generate time-stamp string
 time_start_all_steps="$(date -u +%s)"
-time_start_h=$(date '+%Y-%m-%d_%H%M')
+time_start_h=$(date '+%Y-%m-%d_%H%M') # suffix
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # get 630 DSI subject list (IDs) from salinas.cs.ucsb.edu
