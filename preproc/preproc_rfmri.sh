@@ -1,5 +1,5 @@
 # Usage exapmles:
-# ./test.sh --workpath=/work/code/fs125_rs --task=REST1 --atlas=ROIv_scale33  --download=true --upsampling=true --smoothing=false --bpfiltering=true --tsextract=true --overwrite=false
+# ./test.sh --workpath=/work/code/fs125_rs --task=REST1 --atlas=ROIv_scale33  --download=false --upsampling=false --smoothing=false --bpfiltering=true --tsextract=true --overwrite=true
 
 # todo tasks: 
 # 1. parallel downloading and unsampling steps
@@ -285,12 +285,16 @@ if $FLAG_BPFILTERING; then
                 rfMRI_bp_input=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_$phase.nii.gz
                 rfMRI_bp_output=$WORK_DIR/$subject/rfMRI/${fMRI_FILE_NAME}_125mm_bp_$phase.nii.gz
             fi
-            if [ ! -f $rfMRI_bp_output ]; then
+            if [ ! -f $rfMRI_bp_output ] || [ $FLAG_OVERWRITE ]; then
                 echo "Bandpass filtering started, input: $rfMRI_125mm"
                 time_start="$(date -u +%s)"
                 # Usage: 3dBandpass [options] fbot ftop dataset
                 # add `-nodetrend` only if the dataset had been detrended already in other programs.
-                3dBandpass -quiet -prefix $rfMRI_bp_output 0.008 0.08 $rfMRI_bp_input
+                # 3dBandpass -quiet -prefix $rfMRI_bp_output 0.008 0.08 $rfMRI_bp_input
+
+                fslmaths $rfMRI_bp_input -Tmean mean.nii.gz
+                fslmaths $rfMRI_bp_input -bptf 100 10 -add mean.nii.gz $rfMRI_bp_output
+
                 time_end="$(date -u +%s)"
                 time_elapsed="$(bc <<<"$time_end-$time_start")"
                 echo "Bandpass filtering finished in ${time_elapsed} seconds, \
